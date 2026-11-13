@@ -1,0 +1,41 @@
+name: Compatibility report
+description: Share a real receiver or input test result.
+body:
+  - type: input
+    id: receiver
+    attributes:
+      label: Receiver model identifier and firmware
+      placeholder: AudioAccessory5,1; firmware version
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Linux host, distribution, kernel and CPU architecture
+    validations:
+      required: true
+  - type: input
+    id: input
+    attributes:
+      label: Capture interface and connection type
+      placeholder: Stereo USB line input; turntable preamp set to LINE
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Result
+      options:
+        - Audible playback verified
+        - Audible playback with problems
+        - Discovery or handshake only
+        - Connection failed
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Test details
+      description: Requested delay, duration, what you heard, errors and reproduction. Separate measured latency from requested scheduling. Redact private information.
+    validations:
+      required: true

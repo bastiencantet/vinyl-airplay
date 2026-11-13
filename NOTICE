@@ -1,0 +1,14 @@
+Vinyl AirPlay
+Copyright (c) 2026 Bastien Cantet and contributors.
+Original project code is licensed under GPL-3.0-or-later. See LICENSE.
+
+Optional fingerprint helper:
+SongRec by marin-m and contributors, GPL-3.0-or-later.
+Exact provenance and retained license: tools/shazam-fingerprint/NOTICE and LICENSE.
+
+Dependencies retain their respective licenses. See Cargo.lock and Cargo.toml.
+Apple, AirPlay, HomePod and Shazam are trademarks of Apple Inc.
+This independent community project is not affiliated with or endorsed by Apple.
+No Apple firmware, recordings, credentials, or Apple product images are bundled.
+Optional product images are requested from Apple's image service at runtime.
+Availability and permission for redistribution are not implied by that service.

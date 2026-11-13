@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem without private captures.
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: Please redact addresses, MACs, serial numbers, tokens and names. Do not upload music recordings.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Linux distribution/kernel, CPU architecture, input interface, receiver model and firmware.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the command with addresses redacted, requested delay and session duration.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Minimal redacted logs
+      render: text

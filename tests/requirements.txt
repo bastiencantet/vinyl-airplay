@@ -1,0 +1,3 @@
+# Only for the independent protocol emulator; never runtime dependencies.
+srptools==2.0.0
+cryptography>=46,<49

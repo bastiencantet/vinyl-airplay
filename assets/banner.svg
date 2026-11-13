@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+<title id="title">Vinyl AirPlay</title><desc id="desc">A vinyl record beside the title Your records. Your speakers. On a warm dark green background.</desc>
+<defs><radialGradient id="disc"><stop stop-color="#393c32"/><stop offset=".6" stop-color="#171b17"/><stop offset="1" stop-color="#30372a"/></radialGradient><linearGradient id="back" x2="1" y2="1"><stop stop-color="#26382d"/><stop offset="1" stop-color="#121d18"/></linearGradient></defs>
+<rect width="1200" height="440" rx="24" fill="url(#back)"/>
+<circle cx="219" cy="220" r="156" fill="url(#disc)" stroke="#52634a"/>
+<g fill="none" stroke="#81916e" opacity=".18"><circle cx="219" cy="220" r="143"/><circle cx="219" cy="220" r="132"/><circle cx="219" cy="220" r="121"/><circle cx="219" cy="220" r="110"/><circle cx="219" cy="220" r="99"/><circle cx="219" cy="220" r="88"/><circle cx="219" cy="220" r="77"/></g>
+<circle cx="219" cy="220" r="57" fill="#cb9b62"/><circle cx="219" cy="220" r="7" fill="#202d23"/>
+<text x="219" y="195" text-anchor="middle" fill="#3a382b" font-family="sans-serif" font-size="10" letter-spacing="3">SIDE A</text>
+<path d="M414 188q30 32 0 64m20-83q49 51 0 102" fill="none" stroke="#b1c398" stroke-width="3" stroke-linecap="round" opacity=".65"/>
+<text x="493" y="112" fill="#d6b78e" font-family="sans-serif" font-size="14" letter-spacing="4">A COMMUNITY PROJECT</text>
+<text x="489" y="194" fill="#f0eee5" font-family="Georgia,serif" font-size="72">Vinyl AirPlay</text>
+<text x="493" y="250" fill="#d5dccb" font-family="sans-serif" font-size="25">Your records. Your speakers.</text>
+<text x="493" y="290" fill="#9eaf97" font-family="sans-serif" font-size="20">Your phone stays free.</text>
+<path d="M493 329h594" stroke="#6f8668" opacity=".35"/>
+<text x="493" y="366" fill="#bac7ad" font-family="sans-serif" font-size="13" letter-spacing="2">LOCAL AUDIO · RUST · LINUX · OPEN SOURCE</text>
+</svg>

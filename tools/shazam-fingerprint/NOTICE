@@ -1,0 +1,5 @@
+SongRec fingerprint implementation by marin-m and contributors. GPL-3.0-or-later.
+Source: https://github.com/marin-m/SongRec
+Revision: 41dccd5536434166c4916c5acd0fde9fa546f946
+Adapted: file decoder and gettext removed; supplied PCM resampled by this helper.
+The helper is a separate executable communicating through standard input/output.

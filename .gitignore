@@ -1,0 +1,13 @@
+/target/
+/tools/shazam-fingerprint/target/
+/.venv/
+/control/
+/captures/
+/dist/
+__pycache__/
+*.pyc
+*.pcm
+*.wav
+*.key
+.env
+.DS_Store
