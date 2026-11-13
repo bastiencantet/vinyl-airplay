@@ -52,7 +52,7 @@ impl AutoGain {
         }
         let fixed = self.fixed.unwrap();
         let mut clipped = 0;
-        for frame in pcm.chunks_exact_mut(4) {
+        for frame in pcm.as_chunks_mut::<4>().0 {
             // One short startup fade, then the gain stays identical for every sample.
             if self.ramp_remaining > 0 {
                 self.scale += (fixed - self.scale) / f64::from(self.ramp_remaining);
@@ -62,7 +62,7 @@ impl AutoGain {
                 }
             }
             // Both channels share the same fixed gain: no compressor or limiter.
-            for bytes in frame.chunks_exact_mut(2) {
+            for bytes in frame.as_chunks_mut::<2>().0 {
                 let sample = i16::from_be_bytes([bytes[0], bytes[1]]);
                 let scaled = (f64::from(sample) * self.scale).round();
                 if scaled > f64::from(i16::MAX) || scaled < f64::from(i16::MIN) {
@@ -112,7 +112,7 @@ impl InputGain {
     pub fn apply(&mut self, pcm: &mut [u8]) {
         let mut packet_peak = 0u16;
         let mut packet_power = 0.0;
-        for bytes in pcm.chunks_exact_mut(2) {
+        for bytes in pcm.as_chunks_mut::<2>().0 {
             let sample = i16::from_be_bytes([bytes[0], bytes[1]]);
             self.peak = self.peak.max(sample.unsigned_abs());
             packet_peak = packet_peak.max(sample.unsigned_abs());
@@ -182,7 +182,9 @@ mod tests {
         let mut gain = InputGain::new(db);
         gain.apply(&mut bytes);
         let result = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|b| i16::from_be_bytes([b[0], b[1]]))
             .collect();
         (result, gain.clipped)

@@ -24,7 +24,7 @@ fn db(value: f64) -> f64 {
 }
 impl Meter {
     pub fn observe(&mut self, pcm: &[u8]) {
-        for frame in pcm.chunks_exact(4) {
+        for frame in pcm.as_chunks::<4>().0 {
             let mut pair = [0.; 2];
             for c in 0..2 {
                 let s = i16::from_be_bytes([frame[c * 2], frame[c * 2 + 1]]);

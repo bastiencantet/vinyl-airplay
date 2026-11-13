@@ -16,7 +16,7 @@ impl Settings {
 pub fn rms_dbfs(pcm: &[u8]) -> f64 {
     let mut power = 0.0;
     let mut count = 0;
-    for sample in pcm.chunks_exact(2) {
+    for sample in pcm.as_chunks::<2>().0 {
         let value = f64::from(i16::from_be_bytes([sample[0], sample[1]])) / 32768.0;
         power += value * value;
         count += 1;
