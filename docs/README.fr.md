@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Documentation](README.md)
 
-Diffuse une platine ou une autre entrée audio Linux vers des HomePod, avec un
+Diffuse une platine, une interface USB ou un microphone vers des HomePod, avec un
 contrôle depuis le navigateur. Le téléphone sert de télécommande et ne transporte
 pas le son.
 
@@ -19,25 +19,30 @@ Voir la [compatibilité et les limites connues](COMPATIBILITY.md).
 
 ## Démarrage rapide
 
-Prérequis : **Linux**, **Rust/Cargo**, **alsa-utils**, **Python 3.10+** et une entrée
-ligne stéréo. Les enceintes doivent être sur le même réseau.
+Prérequis : **Rust/Cargo**, **Python 3.10+** et une entrée audio. Linux nécessite
+aussi les en-têtes de développement ALSA et `pkg-config`. Les enceintes doivent
+être sur le même réseau. Le backend natif est choisi à la compilation pour Linux,
+macOS ou Windows ; les essais audio sur matériel restent validés sous Linux.
 
 ```sh
 git clone https://github.com/bastiencantet/vinyl-airplay.git
 cd vinyl-airplay
 cargo build --release --locked
-arecord -L
+./target/release/vinyl-airplay audio-inputs
 ```
 
-Remplace `YOUR_ALSA_INPUT` par le périphérique listé par `arecord -L` :
+Lance avec l’entrée par défaut, ou ajoute `--input-device IDENTIFIANT` :
 
 ```sh
-python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+python3 scripts/serve-web.py
 ```
 
-Ouvre **http://localhost:8787/** sur l'ordinateur Linux. Sélectionne une enceinte,
+Ouvre **http://localhost:8787/** sur l’ordinateur qui diffuse. Sélectionne une enceinte,
 applique puis démarre. Sur une installation neuve, la diffusion et la
 reconnaissance sont désactivées.
+
+Sous Windows, utilise `python` et les exécutables `.exe`. Le chemin Linux
+historique reste disponible avec `--alsa-device YOUR_ALSA_INPUT`.
 
 ## Guides
 

@@ -13,6 +13,14 @@ These are priorities, not promised dates. Help and field reports determine scope
 - [ ] Long-session audio and network/restart recovery tests.
 - [ ] Measure acoustic latency and drift using a reproducible method.
 
+## Portable engine
+
+- [x] Shared Rust library and compile-selected native capture backends.
+- [x] Native input discovery and source-independent activity/gain path.
+- [ ] Physical input and playback validation on macOS and Windows.
+- [ ] Device hotplug, sleep/wake and long-session clock-drift handling.
+- [ ] Audio-file decoding and OS-specific system-audio capture.
+
 ## Then: make installation easier
 
 - [ ] Signed or checksummed release artifacts for validated Linux architectures.

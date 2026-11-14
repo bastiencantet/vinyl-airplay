@@ -92,12 +92,14 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--alsa-device', required=True, help='ALSA input, as listed by arecord -L')
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument('--input-device', default=None, help='Native input ID from audio-inputs; default input if omitted')
+    inputs.add_argument('--alsa-device', help='Legacy Linux ALSA input, as listed by arecord -L')
     parser.add_argument('--listen', default='127.0.0.1', help='Private IPv4 to listen on; loopback by default')
     parser.add_argument('--port', type=int, default=8787)
     parser.add_argument('--state', type=Path, default=Path.home()/'.local/state/vinyl-airplay')
-    parser.add_argument('--controller', type=Path, default=ROOT/'target/release/vinyl-control')
-    parser.add_argument('--sender', type=Path, default=ROOT/'target/release/vinyl-airplay')
+    parser.add_argument('--controller', type=Path, default=ROOT/('target/release/vinyl-control'+('.exe' if os.name == 'nt' else '')))
+    parser.add_argument('--sender', type=Path, default=ROOT/('target/release/vinyl-airplay'+('.exe' if os.name == 'nt' else '')))
     args = parser.parse_args()
     try:
         address = ipaddress.IPv4Address(args.listen)
@@ -129,9 +131,14 @@ def main():
     if address.is_loopback:
         server.allowed_hosts.add(f'localhost:{args.port}')
     env = {**os.environ, 'VINYL_ROOT': str(state), 'VINYL_TOKEN_FILE': str(token_path),
-           'VINYL_BIND': f'127.0.0.1:{controller_port}', 'VINYL_ALSA_DEVICE': args.alsa_device,
+           'VINYL_BIND': f'127.0.0.1:{controller_port}',
            'VINYL_SENDER_BIN': str(args.sender.resolve())}
-    child = subprocess.Popen([str(args.controller.resolve())], env=env)
+    env.pop('VINYL_ALSA_DEVICE', None)
+    env['VINYL_INPUT_DEVICE'] = args.input_device or 'default'
+    if args.alsa_device:
+        env['VINYL_ALSA_DEVICE'] = args.alsa_device
+    child = subprocess.Popen([str(args.controller.resolve())], env=env,
+                             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
     print(f'Open http://{args.listen}:{args.port}/ — playback starts disabled.', flush=True)
     if not address.is_loopback:
@@ -142,7 +149,7 @@ def main():
         pass
     finally:
         server.server_close()
-        child.send_signal(signal.SIGINT)
+        child.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGINT)
         try:
             child.wait(timeout=15)
         except subprocess.TimeoutExpired:

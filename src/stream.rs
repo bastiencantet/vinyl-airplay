@@ -30,6 +30,7 @@ type Backlog = Arc<Mutex<VecDeque<(u16, Vec<u8>)>>>;
 
 pub enum InputSource {
     Stdin,
+    Native(String),
     Alsa(String),
     Encoded(Codec),
 }
@@ -37,7 +38,8 @@ pub enum InputSource {
 struct InputReader {
     reader: Box<dyn AsyncRead + Unpin + Send>,
     // kill_on_drop stops capture on EOF, Ctrl-C, or protocol failure.
-    capture: Option<tokio::process::Child>,
+    _capture: Option<tokio::process::Child>,
+    live: bool,
     pending_pcm: Vec<u8>,
     filled_pcm: usize,
 }
@@ -118,10 +120,28 @@ impl InputSource {
         match self {
             Self::Stdin | Self::Encoded(_) => Ok(InputReader {
                 reader: Box::new(tokio::io::stdin()),
-                capture: None,
+                _capture: None,
+                live: false,
                 pending_pcm: vec![0; PACKET_BYTES],
                 filled_pcm: 0,
             }),
+            Self::Native(device) => {
+                #[cfg(feature = "native-audio")]
+                {
+                    Ok(InputReader {
+                        reader: Box::new(crate::audio::Capture::open(device)?),
+                        _capture: None,
+                        live: true,
+                        pending_pcm: vec![0; PACKET_BYTES],
+                        filled_pcm: 0,
+                    })
+                }
+                #[cfg(not(feature = "native-audio"))]
+                {
+                    let _ = device;
+                    anyhow::bail!("native audio was excluded; rebuild with native-audio");
+                }
+            }
             Self::Alsa(device) => {
                 ensure!(
                     cfg!(target_os = "linux"),
@@ -158,7 +178,8 @@ impl InputSource {
                     .context("missing ALSA capture output")?;
                 Ok(InputReader {
                     reader: Box::new(stdout),
-                    capture: Some(capture),
+                    _capture: Some(capture),
+                    live: true,
                     pending_pcm: vec![0; PACKET_BYTES],
                     filled_pcm: 0,
                 })
@@ -898,7 +919,7 @@ pub async fn play(
 /// Monitor raw input continuously, discarding setup audio to avoid stale buffers.
 #[allow(clippy::too_many_arguments)]
 pub async fn monitor(
-    device: String,
+    source: InputSource,
     targets: Vec<SocketAddr>,
     latency: u32,
     udp_base_port: Option<u16>,
@@ -907,7 +928,10 @@ pub async fn monitor(
     recognize: bool,
     settings: crate::activity::Settings,
 ) -> Result<()> {
-    ensure!(!device.is_empty(), "ALSA device must not be empty");
+    ensure!(
+        matches!(&source, InputSource::Alsa(_) | InputSource::Native(_)),
+        "auto-connect requires a live input"
+    );
     ensure!(
         !targets.is_empty() && targets.len() <= 8,
         "specify 1 to 8 targets"
@@ -917,7 +941,7 @@ pub async fn monitor(
         targets.iter().all(|a| unique.insert(*a)),
         "duplicate receiver target"
     );
-    let mut input = InputSource::Alsa(device).open()?;
+    let mut input = source.open()?;
     loop {
         eprintln!(
             "Monitoring input: no HomePod session; trigger {} dBFS for 300 ms, release after {} s below {} dBFS.",
@@ -929,10 +953,10 @@ pub async fn monitor(
         let mut meter = crate::telemetry::Meter::default();
         loop {
             let packet = tokio::select! {
-                _ = tokio::signal::ctrl_c() => return Ok(()),
+                _ = crate::shutdown::requested() => return Ok(()),
                 packet = input.packet(false) => packet?,
             }
-            .context("ALSA capture ended while monitoring")?;
+            .context("Live capture ended while monitoring")?;
             meter.observe(&packet);
             if detector.observe(&packet) {
                 break;
@@ -958,7 +982,7 @@ pub async fn monitor(
         let mut interrupted = false;
         let result = tokio::select! {
             result = drain_during(&mut input, connect) => result,
-            _ = tokio::signal::ctrl_c() => { interrupted = true; Ok(()) },
+            _ = crate::shutdown::requested() => { interrupted = true; Ok(()) },
         };
         let result = match result {
             _ if interrupted => Ok(RunEnd::Stopped),
@@ -993,7 +1017,7 @@ pub async fn monitor(
             Err(error) => {
                 eprintln!("Playback failed: {error:#}; monitoring again after 5 s.");
                 tokio::select! {
-                    _ = tokio::signal::ctrl_c() => return Ok(()),
+                    _ = crate::shutdown::requested() => return Ok(()),
                     result = drain_during(&mut input, async {
                         tokio::time::sleep(Duration::from_secs(5)).await;
                         Ok(())
@@ -1013,7 +1037,7 @@ async fn drain_during<T>(
         tokio::select! {
             result = &mut future => return result,
             packet = input.packet(false) => {
-                if let Err(error) = packet.and_then(|p| p.context("ALSA capture ended while connecting/disconnecting")) {
+                if let Err(error) = packet.and_then(|p| p.context("Live capture ended while connecting/disconnecting")) {
                     // Finish cleanup even if capture fails while TEARDOWN is in flight.
                     let _ = future.await;
                     return Err(error);
@@ -1044,7 +1068,7 @@ async fn run(
     errors: &mut mpsc::UnboundedReceiver<String>,
     options: RunOptions,
 ) -> Result<RunEnd> {
-    let interrupt = tokio::signal::ctrl_c();
+    let interrupt = crate::shutdown::requested();
     tokio::pin!(interrupt);
     let RunOptions {
         requested,
@@ -1071,7 +1095,7 @@ async fn run(
     };
     let initial_seq: u16 = rand::random();
     let initial_rtp: u32 = rand::random();
-    if input.capture.is_some() {
+    if input.live {
         // Drain ALSA during control exchanges so metadata cannot add a stale backlog.
         let publish = async {
             for session in sessions.iter_mut() {
@@ -1164,8 +1188,8 @@ async fn run(
     };
     let Some(first) = first else {
         ensure!(
-            input.capture.is_none(),
-            "ALSA capture ended without producing audio; check arecord diagnostics"
+            !input.live,
+            "Live capture ended without producing audio; check input diagnostics"
         );
         return Ok(RunEnd::Stopped);
     };
@@ -1205,8 +1229,8 @@ async fn run(
         metrics.max_read = metrics.max_read.max(read_us);
         let Some(mut pcm) = packet else {
             ensure!(
-                input.capture.is_none(),
-                "ALSA capture ended unexpectedly; check arecord diagnostics"
+                !input.live,
+                "Live capture ended unexpectedly; check input diagnostics"
             );
             break;
         };
@@ -1303,7 +1327,8 @@ mod tests {
         let expected: Vec<u8> = (0..PACKET_BYTES).map(|i| (i % 251) as u8).collect();
         let mut input = InputReader {
             reader: Box::new(reader),
-            capture: None,
+            _capture: None,
+            live: false,
             pending_pcm: vec![0; PACKET_BYTES],
             filled_pcm: 0,
         };

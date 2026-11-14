@@ -22,9 +22,11 @@ protocol tests are listed separately in [development](DEVELOPMENT.md).
 | Linux x86-64 | Capture and playback tested on an Intel Mac mini |
 | Linux ARM64 | Sender tested on an M2 Mac mini running Linux |
 | Raspberry Pi | Awaiting hardware validation |
-| macOS | Build and protocol tests; no native live capture |
+| macOS | Native Core Audio capture implemented; physical playback validation pending |
+| Windows | Native WASAPI capture and named-pipe control implemented; physical validation pending |
 
-The community controller uses the selected ALSA input. It does not apply
+The compiled target selects the native capture backend. The controller accepts
+`VINYL_INPUT_DEVICE`, or `VINYL_ALSA_DEVICE` for legacy Linux capture. It does not apply
 machine-specific mixer workarounds from the original personal installation.
 
 ## Known limitations
@@ -45,6 +47,6 @@ machine-specific mixer workarounds from the original personal installation.
 ## Report a test
 
 Use the [compatibility report form](https://github.com/bastiencantet/vinyl-airplay/issues/new/choose).
-Include the model and firmware, Linux version, CPU architecture, input interface,
-requested delay, session duration and audible result. Discovery or a successful
+Include the model and firmware, CPU architecture, input interface,
+OS version, requested delay, session duration and audible result. Discovery or a successful
 handshake alone does not establish working audio.

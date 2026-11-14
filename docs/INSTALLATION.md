@@ -7,9 +7,11 @@ are not available yet. Check [compatibility](COMPATIBILITY.md) before buying har
 
 ## Requirements
 
-- Linux with access to the audio input through ALSA.
+- Linux, macOS or Windows with an accessible audio input.
+- Linux: ALSA development headers and `pkg-config` (`libasound2-dev` on Debian/Ubuntu).
+- Windows: the Rust MSVC toolchain and Visual Studio C++ Build Tools.
 - Rust/Cargo with edition 2024 support.
-- `alsa-utils` for capture and device discovery.
+- `alsa-utils` only for the optional legacy Linux capture path.
 - Python 3.10+ for the web interface.
 - A HomePod or HomePod mini on the same local network.
 
@@ -19,7 +21,7 @@ application itself runs as your user; it does not need root or Kubernetes.
 ## Connect the source
 
 ```text
-Turntable → phono preamp → stereo line input → Linux → HomePod
+Turntable → phono preamp → stereo line input → computer → HomePod
 ```
 
 A turntable with a built-in preamp can connect directly to the line input;
@@ -42,26 +44,53 @@ This builds the sender and controller in `target/release/`.
 ## Select an input
 
 ```sh
-arecord -l
-arecord -L
+./target/release/vinyl-airplay audio-inputs
 ```
 
-`arecord -l` lists capture hardware; `arecord -L` lists ALSA device identifiers.
-Choose the identifier for the connected line input. It may look like
-`plughw:CARD=USB,DEV=0`, but the name depends on your hardware.
+On Windows, use `target/release/vinyl-airplay.exe`. The JSON lists input names,
+IDs, the default input and the compiled host backend. Select an **ID**, not a
+list index or a display name. Use `default` to follow the system default at the
+next start; the running capture does not automatically switch devices.
 
-If capture is denied, check your distribution's audio permissions and whether
-another application is using the device. See [troubleshooting](TROUBLESHOOTING.md).
+Native capture uses Core Audio on macOS, WASAPI on Windows and ALSA on Linux.
+It accepts common integer/float mono (duplicated to both channels) or stereo PCM. It prefers 44.1 kHz;
+otherwise it converts the device's default rate to 44.1 kHz with a sinc filter.
+Capture callbacks never wait for networking or run the resampler. A buffer
+overrun or device loss stops the stream with an error rather than hiding sample
+loss. Reconnection after hotplug is not implemented yet.
+
+macOS and Windows may require microphone/input permission for the terminal or
+application launching the sender. A headphone-only socket cannot capture audio.
+System/application loopback and audio-file decoding are not implemented yet.
+
+For the existing Linux `arecord` path, install `alsa-utils`, run `arecord -L`,
+and use `--alsa-device YOUR_ALSA_INPUT` instead of `--input-device`.
 
 ## Launch
 
-Replace `YOUR_ALSA_INPUT` with the identifier you selected:
+Use the default input:
 
 ```sh
-python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+python3 scripts/serve-web.py
 ```
 
-Open **http://localhost:8787/** on the Linux computer. Playback is disabled on
+Pass `--input-device INPUT_ID` to choose another input. On Windows, run the
+launcher with `python` rather than `python3`.
+
+Open **http://localhost:8787/** on the computer running the sender. Playback is disabled on
 a fresh installation. Choose a speaker and follow the [usage guide](USAGE.md).
 
 For phone access, see [network configuration](CONFIGURATION.md#network-access).
+
+## Headless Linux builds
+
+The native backend is enabled by default. To retain only stdin and the legacy
+`arecord` path, without linking the native audio libraries:
+
+```sh
+cargo build --release --locked --no-default-features
+python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+```
+
+This does not include native capture. Each OS needs its own compiled artifact;
+one executable does not run on all three systems.

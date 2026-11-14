@@ -1,18 +1,6 @@
-mod activity;
-mod clock;
-mod crypto;
-mod discovery;
-mod gain;
-mod metadata;
-mod pairing;
-mod recognition;
-mod rtsp;
-mod stream;
-mod telemetry;
-mod tlv;
-mod video;
-mod visualization;
-mod volume;
+use vinyl_airplay::{
+    activity, clock, discovery, pairing, recognition, rtsp, stream, video, volume,
+};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -30,6 +18,8 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// List native input devices and the compiled host backend as JSON.
+    AudioInputs,
     /// Discover _airplay and _raop Bonjour services; print raw TXT capabilities as JSON.
     Discover {
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..=60))]
@@ -56,21 +46,25 @@ enum Command {
         pcm_file: std::path::PathBuf,
     },
     /// EXPERIMENTAL: stream PCM S16BE/44100/stereo via AirPlay 2/NTP.
+    #[command(group(clap::ArgGroup::new("live_input").args(["alsa_device", "input_device"])))]
     Stream {
         /// Repeat for both HomePods. Use the port advertised by _airplay._tcp.
         #[arg(long, required = true)]
         target: Vec<SocketAddr>,
-        /// Linux ALSA input (e.g. plughw:CARD=USB,DEV=0). Starts arecord AFTER setup.
+        /// Native input ID from audio-inputs, or "default" (Core Audio / WASAPI / ALSA).
+        #[arg(long, conflicts_with = "alsa_device")]
+        input_device: Option<String>,
+        /// Legacy Linux ALSA input (e.g. plughw:CARD=USB,DEV=0).
         /// Without this option, reads raw PCM from stdin.
         #[arg(long)]
         alsa_device: Option<String>,
         /// RESEARCH ONLY: stdin contains u16-BE lengths + raw AAC-ELD access units.
         /// 48000 Hz stereo, 480 frames/unit. No live encoder or decoder validation.
-        #[arg(long, conflicts_with_all = ["alsa_device", "gain_db", "auto_gain"])]
+        #[arg(long, conflicts_with_all = ["alsa_device", "input_device", "gain_db", "auto_gain"])]
         preencoded_aac_eld: bool,
         /// RESEARCH ONLY: u16-BE lengths + raw compressed stereo access units.
         /// ALAC: 44100/352; AAC-LC: 44100/1024; AAC-ELD: 48000/480. No live encoder.
-        #[arg(long, value_enum, conflicts_with_all = ["preencoded_aac_eld", "alsa_device", "gain_db", "auto_gain"])]
+        #[arg(long, value_enum, conflicts_with_all = ["preencoded_aac_eld", "alsa_device", "input_device", "gain_db", "auto_gain"])]
         preencoded_codec: Option<stream::Codec>,
         /// Fixed digital input gain, -60..60 dB. Positive gain can clip and amplifies noise.
         #[arg(long, default_value_t = 0, allow_hyphen_values = true, conflicts_with = "auto_gain", value_parser = clap::value_parser!(i16).range(-60..=60))]
@@ -79,11 +73,11 @@ enum Command {
         /// Leaves 9 dB headroom against measured peaks; later louder input can clip.
         #[arg(long)]
         auto_gain: bool,
-        /// Monitor ALSA input without a receiver session; connect on activity and release on silence.
-        #[arg(long, requires = "alsa_device")]
+        /// Monitor a live input without a receiver session; connect on activity and release on silence.
+        #[arg(long, requires = "live_input")]
         auto_connect: bool,
         /// Identify vinyl songs via Shazam fingerprints and publish title, album and artwork.
-        #[arg(long, requires = "alsa_device")]
+        #[arg(long, requires = "live_input")]
         recognize: bool,
         /// Trigger threshold measured on raw input, BEFORE gain. Requires 300 ms of signal.
         #[arg(long, default_value_t = -50, allow_hyphen_values = true, requires = "auto_connect", value_parser = clap::value_parser!(i16).range(-90..=-10))]
@@ -104,6 +98,10 @@ enum Command {
 #[tokio::main]
 async fn main() -> Result<()> {
     match Args::parse().command {
+        Command::AudioInputs => println!(
+            "{}",
+            serde_json::to_string_pretty(&vinyl_airplay::audio::devices()?)?
+        ),
         Command::VideoBench {
             target,
             url,
@@ -163,6 +161,7 @@ async fn main() -> Result<()> {
             target,
             latency_ms,
             alsa_device,
+            input_device,
             preencoded_aac_eld,
             preencoded_codec,
             gain_db,
@@ -192,9 +191,18 @@ async fn main() -> Result<()> {
                 );
             }
             let _volume_server = volume::start()?;
+            let source = if codec != stream::Codec::Pcm {
+                stream::InputSource::Encoded(codec)
+            } else if let Some(device) = input_device {
+                stream::InputSource::Native(device)
+            } else if let Some(device) = alsa_device {
+                stream::InputSource::Alsa(device)
+            } else {
+                stream::InputSource::Stdin
+            };
             if auto_connect {
                 return stream::monitor(
-                    alsa_device.context("auto-connect requires ALSA capture")?,
+                    source,
                     target,
                     clock::latency_samples(latency_ms)?,
                     udp_base_port,
@@ -208,13 +216,6 @@ async fn main() -> Result<()> {
                 )
                 .await;
             }
-            let source = if codec != stream::Codec::Pcm {
-                stream::InputSource::Encoded(codec)
-            } else if let Some(device) = alsa_device {
-                stream::InputSource::Alsa(device)
-            } else {
-                stream::InputSource::Stdin
-            };
             stream::play(
                 source,
                 target,
@@ -232,4 +233,36 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn live_sources_allow_activity_but_cannot_be_mixed() {
+        for input in ["--input-device", "--alsa-device"] {
+            assert!(
+                Args::try_parse_from([
+                    "vinyl-airplay",
+                    "stream",
+                    "--target",
+                    "127.0.0.1:7000",
+                    input,
+                    "default",
+                    "--auto-connect",
+                    "--recognize"
+                ])
+                .is_ok()
+            );
+        }
+        for tail in [
+            vec!["--input-device", "default", "--alsa-device", "default"],
+            vec!["--input-device", "default", "--preencoded-aac-eld"],
+            vec!["--auto-connect"],
+        ] {
+            let mut args = vec!["vinyl-airplay", "stream", "--target", "127.0.0.1:7000"];
+            args.extend(tail);
+            assert!(Args::try_parse_from(args).is_err());
+        }
+    }
 }

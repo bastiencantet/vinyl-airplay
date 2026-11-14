@@ -7,7 +7,7 @@
 Start the launcher from the project directory:
 
 ```sh
-python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+python3 scripts/serve-web.py --input-device default
 ```
 
 Open **http://localhost:8787/** on the same computer.
@@ -42,7 +42,8 @@ Speaker volume and input gain are separate controls.
 
 ## Command line
 
-The sender can also run without the web interface. First discover receivers:
+The sender can also run without the web interface. List native inputs with
+`vinyl-airplay audio-inputs`, then discover receivers:
 
 ```sh
 ./target/release/vinyl-airplay discover --seconds 5
@@ -52,7 +53,7 @@ Use the address and port advertised by `_airplay._tcp` in place of `RECEIVER_ADD
 
 ```sh
 ./target/release/vinyl-airplay stream \
-  --alsa-device YOUR_ALSA_INPUT \
+  --input-device default \
   --target RECEIVER_ADDRESS \
   --auto-connect --latency-ms 250
 ```

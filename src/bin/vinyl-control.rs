@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::{
     collections::{BTreeMap, HashSet, VecDeque},
@@ -120,6 +121,7 @@ struct App {
     root: PathBuf,
     config_path: PathBuf,
     receivers: receivers::Catalog,
+    control_path: PathBuf,
 }
 fn now() -> u64 {
     SystemTime::now()
@@ -167,10 +169,12 @@ async fn meter(State(app): State<Arc<App>>) -> Json<Value> {
     )
 }
 async fn refresh(manager: &mut Manager, status: &Arc<RwLock<Status>>) {
+    #[cfg(unix)]
     let id = manager.child.as_ref().and_then(Child::id);
     if let Some(child) = manager.child.as_mut()
         && let Ok(Some(exit)) = child.try_wait()
     {
+        #[cfg(unix)]
         if let Some(id) = id {
             signal_group(id, "-KILL").await;
         }
@@ -182,25 +186,30 @@ async fn refresh(manager: &mut Manager, status: &Arc<RwLock<Status>>) {
         manager.child = None;
     }
 }
+#[cfg(unix)]
 async fn signal_group(id: u32, signal: &str) {
     let _ = Command::new("/bin/kill")
         .args([signal, "--", &format!("-{id}")])
         .status()
         .await;
 }
-async fn stop(manager: &mut Manager) -> Result<()> {
+async fn stop(manager: &mut Manager, app: &App) -> Result<()> {
     if let Some(mut child) = manager.child.take() {
+        #[cfg(unix)]
         let id = child.id();
+        let _ = sender_control(app, json!({"op":"shutdown"}), Duration::from_millis(500)).await;
+        #[cfg(unix)]
         if let Some(id) = id {
             signal_group(id, "-INT").await;
         }
         let finished = tokio::time::timeout(Duration::from_secs(8), child.wait()).await;
         // Also reap descendants after a sender crash or forced stop: never leave arecord behind.
+        #[cfg(unix)]
         if let Some(id) = id {
             signal_group(id, "-KILL").await;
         }
         if finished.is_err() {
-            child.wait().await?;
+            child.kill().await?;
         }
     }
     if let Some(reader) = manager.reader.take() {
@@ -219,11 +228,20 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
     }
     let sender = std::env::var_os("VINYL_SENDER_BIN")
         .map(PathBuf::from)
-        .unwrap_or_else(|| app.root.join("bin/vinyl-airplay"));
-    let input = std::env::var("VINYL_ALSA_DEVICE").unwrap_or_else(|_| "default".into());
+        .unwrap_or_else(|| {
+            app.root
+                .join(format!("bin/vinyl-airplay{}", std::env::consts::EXE_SUFFIX))
+        });
+    let (input_flag, input) = match std::env::var("VINYL_ALSA_DEVICE") {
+        Ok(device) => ("--alsa-device", device),
+        Err(_) => (
+            "--input-device",
+            std::env::var("VINYL_INPUT_DEVICE").unwrap_or_else(|_| "default".into()),
+        ),
+    };
     let mut cmd = Command::new(sender);
     cmd.arg("stream").args([
-        "--alsa-device",
+        input_flag,
         &input,
         "--latency-ms",
         &c.latency_ms.to_string(),
@@ -257,12 +275,15 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
         "VINYL_CONTROL_ARTWORK",
         app.root.join("control/artwork.jpg"),
     )
-    .env("VINYL_CONTROL_SOCKET", app.root.join("control/audio.sock"))
+    .env("VINYL_CONTROL_SOCKET", &app.control_path)
     .stdin(Stdio::null())
     .stdout(Stdio::null())
     .stderr(Stdio::piped())
     .kill_on_drop(true);
+    #[cfg(unix)]
     cmd.as_std_mut().process_group(0);
+    #[cfg(windows)]
+    cmd.creation_flags(0x00000200); // CREATE_NEW_PROCESS_GROUP: controller Ctrl-Break must not kill audio before TEARDOWN.
     let mut child = cmd.spawn().context("Démarrer le programme audio")?;
     let stderr = child.stderr.take().context("stderr")?;
     let status = app.status.clone();
@@ -275,7 +296,8 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
         let mut logged_bytes = 0;
         while let Ok(Some(line)) = lines.next_line().await {
             // Events and diagnostics are bounded; no raw audio or credentials are logged.
-            if line.starts_with("Starting ALSA capture on ")
+            if (line.starts_with("Starting ALSA capture on ")
+                || line.starts_with("Starting native capture on "))
                 && let Some(tx) = capture_tx.take()
             {
                 let _ = tx.send(());
@@ -380,7 +402,7 @@ async fn apply(State(app): State<Arc<App>>, Json(config): Json<Config>) -> Respo
     }
     let old = m.config.clone();
     let result: Result<()> = async {
-        stop(&mut m).await?;
+        stop(&mut m, &app).await?;
         m.config = config;
         start(&app, &mut m).await?;
         let tmp = app.config_path.with_extension("tmp");
@@ -391,7 +413,7 @@ async fn apply(State(app): State<Arc<App>>, Json(config): Json<Config>) -> Respo
     .await;
     if let Err(error) = result {
         let message = format!("{error:#}");
-        let _ = stop(&mut m).await;
+        let _ = stop(&mut m, &app).await;
         m.config = old;
         let rollback = start(&app, &mut m).await.err().map(|e| format!("{e:#}"));
         app.status.write().await.error = Some(message.clone());
@@ -405,8 +427,7 @@ async fn apply(State(app): State<Arc<App>>, Json(config): Json<Config>) -> Respo
 }
 async fn sender_control(app: &App, request: Value, deadline: Duration) -> Result<Value> {
     tokio::time::timeout(deadline, async {
-        let mut socket =
-            tokio::net::UnixStream::connect(app.root.join("control/audio.sock")).await?;
+        let mut socket = vinyl_airplay::ipc::connect(&app.control_path).await?;
         let mut bytes = serde_json::to_vec(&request)?;
         bytes.push(b'\n');
         socket.write_all(&bytes).await?;
@@ -526,6 +547,7 @@ async fn main() -> Result<()> {
         }),
         status: Arc::new(RwLock::new(Status::default())),
         token,
+        control_path: vinyl_airplay::ipc::endpoint(&root),
         root,
         config_path,
         receivers,
@@ -533,7 +555,7 @@ async fn main() -> Result<()> {
     {
         let mut m = app.manager.lock().await;
         if let Err(error) = start(&app, &mut m).await {
-            let _ = stop(&mut m).await;
+            let _ = stop(&mut m, &app).await;
             let mut status = app.status.write().await;
             status.phase = "error".into();
             status.error = Some(format!("{error:#}"));
@@ -552,10 +574,16 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(bind).await?;
     axum::serve(listener, router)
         .with_graceful_shutdown(async {
+            #[cfg(unix)]
             let _ = tokio::signal::ctrl_c().await;
+            #[cfg(windows)]
+            {
+                let mut breaks = tokio::signal::windows::ctrl_break().expect("register Ctrl-Break");
+                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = breaks.recv() => {} }
+            }
         })
         .await?;
-    stop(&mut *app.manager.lock().await).await?;
+    stop(&mut *app.manager.lock().await, &app).await?;
     Ok(())
 }
 

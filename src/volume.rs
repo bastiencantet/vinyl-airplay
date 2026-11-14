@@ -6,14 +6,12 @@ use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    os::unix::fs::{FileTypeExt, PermissionsExt},
     path::PathBuf,
     sync::{Arc, Mutex as StdMutex, OnceLock},
     time::Duration,
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::UnixListener,
     sync::{Mutex, Semaphore},
     task::JoinHandle,
 };
@@ -65,10 +63,15 @@ pub fn observed(target: SocketAddr, level: &Level, db: f64) {
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
     Status,
+    Shutdown,
     Set { target: SocketAddr, percent: u8 },
 }
 async fn handle(request: Request) -> Result<Value> {
     match request {
+        Request::Shutdown => {
+            crate::shutdown::request();
+            Ok(json!({"ok":true}))
+        }
         Request::Status => {
             let entries = registry().lock().expect("volume registry");
             let receivers: Vec<_> = entries
@@ -111,44 +114,29 @@ async fn handle(request: Request) -> Result<Value> {
     }
 }
 pub struct Server {
-    path: PathBuf,
     task: JoinHandle<()>,
 }
 impl Drop for Server {
     fn drop(&mut self) {
         self.task.abort();
-        let _ = std::fs::remove_file(&self.path);
     }
 }
 pub fn start() -> Result<Option<Server>> {
     let Some(path) = std::env::var_os("VINYL_CONTROL_SOCKET").map(PathBuf::from) else {
         return Ok(None);
     };
-    if path.exists() {
-        ensure!(
-            std::fs::symlink_metadata(&path)?.file_type().is_socket(),
-            "Control path is not a Unix socket"
-        );
-        // The supervisor stops the previous sender before starting another.
-        ensure!(
-            std::os::unix::net::UnixStream::connect(&path).is_err(),
-            "Another sender owns the control socket"
-        );
-        std::fs::remove_file(&path)?;
-    }
-    let listener = UnixListener::bind(&path)?;
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    let mut listener = crate::ipc::Listener::bind(&path)?;
     let task = tokio::spawn(async move {
         let limit = Arc::new(Semaphore::new(4));
-        while let Ok((socket, _)) = listener.accept().await {
+        while let Ok(socket) = listener.accept().await {
             let Ok(permit) = limit.clone().try_acquire_owned() else {
                 continue;
             };
             tokio::spawn(async move {
                 let _permit = permit;
-                let (reader, mut writer) = socket.into_split();
+                let (reader, mut writer) = tokio::io::split(socket);
+                let mut reader = BufReader::new(reader);
                 let result: Result<Value> = async {
-                    let mut reader = BufReader::new(reader);
                     let mut line = String::new();
                     // Limit the request before allocating an arbitrarily large line.
                     use tokio::io::AsyncReadExt;
@@ -170,11 +158,19 @@ pub fn start() -> Result<Option<Server>> {
                 if let Ok(mut bytes) = serde_json::to_vec(&response) {
                     bytes.push(b'\n');
                     let _ = writer.write_all(&bytes).await;
+                    #[cfg(windows)]
+                    {
+                        // Closing a named pipe before its client consumes the reply can
+                        // discard that reply. The bounded client closes after reading.
+                        use tokio::io::AsyncReadExt;
+                        let _ = tokio::time::timeout(Duration::from_secs(2), reader.read(&mut [0]))
+                            .await;
+                    }
                 }
             });
         }
     });
-    Ok(Some(Server { path, task }))
+    Ok(Some(Server { task }))
 }
 #[cfg(test)]
 mod tests {

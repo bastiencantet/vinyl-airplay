@@ -6,7 +6,9 @@
 |---|---|
 | No speakers found | Same LAN, multicast/mDNS availability and Wi-Fi client isolation |
 | Speaker found but connection fails | Receiver firmware, access settings and [supported authentication](COMPATIBILITY.md) |
-| No input audio | Selected ALSA device, cable connection, capture mute and LINE/PHONO setting |
+| No input audio | Selected native input ID (or legacy ALSA device), OS input permission, cable, capture mute and LINE/PHONO setting |
+| Native input unavailable | Run `audio-inputs` again, check OS microphone permission and whether the device was unplugged |
+| Native capture overrun/stall | Check device stability and system load; restart after correcting the fault |
 | Very low signal | Correct line input and a suitable phono preamp |
 | Distortion | Input clipping, microphone-vs-line mismatch and excessive digital gain |
 | Intermittent clicks | Capture quality, network stability and requested delay |
@@ -34,7 +36,7 @@ recent output under its technical status panel.
 
 Search [existing issues](https://github.com/bastiencantet/vinyl-airplay/issues)
 or [open a report](https://github.com/bastiencantet/vinyl-airplay/issues/new/choose).
-Include the receiver model/firmware, Linux version, input interface, requested
+Include the receiver model/firmware, OS version, input interface, requested
 delay, session duration and steps to reproduce.
 
 Share only the relevant log excerpt. Remove tokens, IP/MAC addresses, device

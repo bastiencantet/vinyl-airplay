@@ -115,7 +115,10 @@ impl Drop for Tap {
 pub fn fingerprint_program() -> Result<PathBuf> {
     Ok(std::env::var_os("VINYL_SHAZAM_FINGERPRINT")
         .map(PathBuf::from)
-        .unwrap_or(std::env::current_exe()?.with_file_name("vinyl-shazam-fingerprint")))
+        .unwrap_or(std::env::current_exe()?.with_file_name(format!(
+            "vinyl-shazam-fingerprint{}",
+            std::env::consts::EXE_SUFFIX
+        ))))
 }
 
 async fn process(mut command: Command, input: Option<&[u8]>, limit: u64) -> Result<Vec<u8>> {
@@ -200,8 +203,14 @@ async fn http(url: &str, body: Option<&[u8]>, limit: u64) -> Result<Vec<u8>> {
 }
 
 pub async fn identify(pcm: &[u8]) -> Result<Option<Track>> {
-    let mut command = Command::new("nice");
-    command.args(["-n", "10"]).arg(fingerprint_program()?);
+    #[cfg(unix)]
+    let command = {
+        let mut cmd = Command::new("nice");
+        cmd.args(["-n", "10"]).arg(fingerprint_program()?);
+        cmd
+    };
+    #[cfg(windows)]
+    let command = Command::new(fingerprint_program()?);
     let signature: Value = serde_json::from_slice(&process(command, Some(pcm), MAX_JSON).await?)?;
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as u64;
     let body = serde_json::to_vec(
