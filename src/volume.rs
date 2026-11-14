@@ -135,8 +135,8 @@ pub fn start() -> Result<Option<Server>> {
             tokio::spawn(async move {
                 let _permit = permit;
                 let (reader, mut writer) = tokio::io::split(socket);
+                let mut reader = BufReader::new(reader);
                 let result: Result<Value> = async {
-                    let mut reader = BufReader::new(reader);
                     let mut line = String::new();
                     // Limit the request before allocating an arbitrarily large line.
                     use tokio::io::AsyncReadExt;
@@ -158,6 +158,14 @@ pub fn start() -> Result<Option<Server>> {
                 if let Ok(mut bytes) = serde_json::to_vec(&response) {
                     bytes.push(b'\n');
                     let _ = writer.write_all(&bytes).await;
+                    #[cfg(windows)]
+                    {
+                        // Closing a named pipe before its client consumes the reply can
+                        // discard that reply. The bounded client closes after reading.
+                        use tokio::io::AsyncReadExt;
+                        let _ = tokio::time::timeout(Duration::from_secs(2), reader.read(&mut [0]))
+                            .await;
+                    }
                 }
             });
         }
