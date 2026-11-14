@@ -16,7 +16,13 @@ pub mod shutdown {
     pub async fn requested() {
         let mut rx = channel().subscribe();
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
+            _ = async {
+                // A GUI-owned Windows worker may have no console. Failure to
+                // register Ctrl-C must not be interpreted as a shutdown request.
+                if tokio::signal::ctrl_c().await.is_err() {
+                    std::future::pending::<()>().await;
+                }
+            } => {},
             _ = rx.wait_for(|value| *value) => {},
         }
     }
