@@ -4,7 +4,9 @@
 
 ## Playback settings
 
-The web interface saves settings in `~/.local/state/vinyl-airplay/control/config.json`.
+On Linux, the web launcher saves settings in `~/.local/state/vinyl-airplay/control/config.json`
+(or under `XDG_STATE_HOME`). macOS uses `~/Library/Application Support/vinyl-airplay-web`;
+Windows uses `%LOCALAPPDATA%/vinyl-airplay-web`. Use `--state` to select another directory.
 Existing settings are restored when the launcher restarts.
 
 | Setting | Default | Behavior |
@@ -26,7 +28,7 @@ To use a phone on the same trusted Wi-Fi, replace `LINUX_HOST_IP` with the Linux
 computer's private IPv4 address:
 
 ```sh
-python3 scripts/serve-web.py \
+./target/release/vinyl-web \
   --alsa-device YOUR_ALSA_INPUT --listen LINUX_HOST_IP
 ```
 
@@ -34,8 +36,8 @@ Open `http://LINUX_HOST_IP:8787/` on the phone, using the same address.
 
 Anyone who can reach that endpoint on your trusted network can control playback.
 It uses HTTP without individual user login. Do not forward the port to the
-Internet. The underlying controller remains on loopback; its authentication
-token stays on the server.
+Internet. The controller runs in the launcher process; there is no proxy or second
+HTTP control port. Host and Origin checks protect local browser access.
 
 ## Song recognition
 
@@ -64,7 +66,6 @@ when an image is available for the discovered model and color.
 | `--listen` | Specific private IPv4; loopback by default |
 | `--port` | Web port; defaults to 8787 |
 | `--state` | Settings and log directory |
-| `--controller` | Path to the controller binary |
 | `--sender` | Path to the sender binary |
 
 For the controller's environment variables and development setup, see

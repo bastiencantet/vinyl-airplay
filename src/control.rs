@@ -635,9 +635,9 @@ impl Controller {
             .await?;
         Ok(())
     }
-    pub async fn serve(&self, bind: &str) -> Result<()> {
+    pub(crate) fn routes(&self) -> Router {
         let app = self.0.clone();
-        let router = Router::new()
+        Router::new()
             .route("/api/state", get(state))
             .route("/api/meter", get(meter))
             .route("/api/inputs", get(inputs))
@@ -645,8 +645,13 @@ impl Controller {
             .route("/api/artwork", get(artwork))
             .route("/api/volume", post(set_volume))
             .layer(DefaultBodyLimit::max(4096))
-            .layer(middleware::from_fn_with_state(app.clone(), auth))
-            .with_state(app);
+            .with_state(app)
+    }
+    pub async fn serve(&self, bind: &str) -> Result<()> {
+        let app = self.0.clone();
+        let router = self
+            .routes()
+            .layer(middleware::from_fn_with_state(app, auth));
         let listener = tokio::net::TcpListener::bind(bind).await?;
         axum::serve(listener, router)
             .with_graceful_shutdown(async {

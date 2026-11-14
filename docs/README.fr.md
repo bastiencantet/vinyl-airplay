@@ -19,7 +19,7 @@ Voir la [compatibilité et les limites connues](COMPATIBILITY.md).
 
 ## Démarrage rapide
 
-Prérequis : **Rust/Cargo**, **Python 3.10+** et une entrée audio. Linux nécessite
+Prérequis : **Rust/Cargo** et une entrée audio. Linux nécessite
 aussi les en-têtes de développement ALSA et `pkg-config`. Les enceintes doivent
 être sur le même réseau. Le backend natif est choisi à la compilation pour Linux,
 macOS ou Windows ; les essais audio sur matériel restent validés sous Linux.
@@ -34,14 +34,14 @@ cargo build --release --locked
 Lance avec l’entrée par défaut, ou ajoute `--input-device IDENTIFIANT` :
 
 ```sh
-python3 scripts/serve-web.py
+./target/release/vinyl-web
 ```
 
 Ouvre **http://localhost:8787/** sur l’ordinateur qui diffuse. Sélectionne une enceinte,
 applique puis démarre. Sur une installation neuve, la diffusion et la
 reconnaissance sont désactivées.
 
-Sous Windows, utilise `python` et les exécutables `.exe`. Le chemin Linux
+Sous Windows, utilise les exécutables `.exe`. Le lanceur web est en Rust. Le chemin Linux
 historique reste disponible avec `--alsa-device YOUR_ALSA_INPUT`.
 
 ## Guides

@@ -2,6 +2,11 @@
 
 ## Unreleased — community alpha
 
+- Replace the Python web proxy/launcher with `vinyl-web`: embedded UI assets,
+  direct Rust control, restricted LAN access and no intermediate HTTP process.
+- Add state-directory ownership locking, Ctrl-C/SIGTERM shutdown and native
+  web request-boundary/lifecycle tests. Python remains only in test emulators.
+
 - Add a Tauri desktop alpha with bundled native sender/fingerprint helper,
   input selection, local controls, persistent settings and tray lifecycle.
 - Share the controller between desktop IPC and the authenticated web adapter.

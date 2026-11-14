@@ -39,3 +39,5 @@ pub mod volume;
 
 pub mod control;
 mod receivers;
+
+pub mod web;
