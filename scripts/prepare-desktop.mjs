@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, copyFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import './check-desktop-version.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const profile = process.argv.includes('--debug') ? 'debug' : 'release';
 const host = /^host: (.+)$/m.exec(execFileSync('rustc', ['-vV'], { encoding: 'utf8' }))[1];
