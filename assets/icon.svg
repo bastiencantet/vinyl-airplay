@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Vinyl AirPlay">
+<rect width="96" height="96" rx="22" fill="#22362a"/>
+<circle cx="48" cy="48" r="36" fill="#161e18" stroke="#67795d"/>
+<g fill="none" stroke="#53644b" opacity=".6"><circle cx="48" cy="48" r="30"/><circle cx="48" cy="48" r="25"/><circle cx="48" cy="48" r="20"/></g>
+<circle cx="48" cy="48" r="14" fill="#c9a26c"/><circle cx="48" cy="48" r="3" fill="#22362a"/>
+</svg>

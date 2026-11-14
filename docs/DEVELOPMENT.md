@@ -59,3 +59,19 @@ References:
 
 Do not import third-party implementations without reviewing the license and
 recording their origin. No Apple firmware or recordings belong in this repository.
+
+## Controller environment
+
+The community launcher sets these automatically. They are useful when running
+the controller directly or preparing service packaging.
+
+| Variable | Purpose |
+|---|---|
+| `VINYL_ROOT` | Runtime state directory |
+| `VINYL_TOKEN_FILE` | File containing the API bearer token |
+| `VINYL_BIND` | Controller socket address; defaults to loopback |
+| `VINYL_ALSA_DEVICE` | ALSA input; defaults to `default` |
+| `VINYL_SENDER_BIN` | Sender binary; defaults to `bin/vinyl-airplay` under the state directory |
+
+The launcher keeps the controller on loopback, injects the token server-side,
+and exposes only the documented routes through the web gateway.

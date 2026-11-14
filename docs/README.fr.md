@@ -1,47 +1,53 @@
-# Vinyl AirPlay — communauté
+# Vinyl AirPlay
 
-**Tes vinyles, tes enceintes. Ton téléphone reste libre.**
+[English](../README.md) · [Documentation](README.md)
 
-Un émetteur AirPlay en Rust pour envoyer une entrée audio Linux vers des HomePod,
-avec contrôle depuis un navigateur et connexion automatique à la lecture.
+Diffuse une platine ou une autre entrée audio Linux vers des HomePod, avec un
+contrôle depuis le navigateur. Le téléphone sert de télécommande et ne transporte
+pas le son.
 
-C'est une **version alpha communautaire** : l'audio fonctionne sur du matériel
-réel, mais l'installation doit encore être validée chez d'autres personnes.
-Le Raspberry Pi est une cible à tester, pas encore une compatibilité acquise.
+**Version alpha.** Testée avec HomePod de première génération et HomePod mini.
+Voir la [compatibilité et les limites connues](COMPATIBILITY.md).
 
-## Essayer
+## Fonctionnalités
 
-Prérequis : Linux, Rust/Cargo, `alsa-utils`, Python 3.10+ pour l'interface web,
-une entrée audio stéréo de niveau ligne, et les enceintes sur le même réseau.
+- Connexion automatique à la lecture et déconnexion après silence.
+- Détection des enceintes et réglage de leur volume.
+- Gain fixe, niveaux stéréo et spectre audio.
+- Reconnaissance facultative des morceaux et affichage de la pochette.
+- Fonctionnement local, sans compte ni abonnement.
+
+## Démarrage rapide
+
+Prérequis : **Linux**, **Rust/Cargo**, **alsa-utils**, **Python 3.10+** et une entrée
+ligne stéréo. Les enceintes doivent être sur le même réseau.
 
 ```sh
 git clone https://github.com/bastiencantet/vinyl-airplay.git
 cd vinyl-airplay
 cargo build --release --locked
 arecord -L
-./target/release/vinyl-airplay discover --seconds 5
-python3 scripts/serve-web.py --alsa-device 'plughw:CARD=USB,DEV=0'
 ```
 
-Remplace le périphérique ALSA par le tien, puis ouvre http://127.0.0.1:8787/.
-Sélectionne une enceinte, applique et démarre. Sur une installation neuve, la
-diffusion et la reconnaissance des morceaux sont désactivées.
+Remplace `YOUR_ALSA_INPUT` par le périphérique listé par `arecord -L` :
 
-Pour ton téléphone, ajoute `--listen` avec l'adresse IPv4 privée de la machine
-Linux. Le contrôle est alors accessible aux appareils du réseau de confiance :
-ne publie pas ce port sur Internet.
+```sh
+python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+```
 
-## Ce qu'il faut savoir
+Ouvre **http://localhost:8787/** sur l'ordinateur Linux. Sélectionne une enceinte,
+applique puis démarre. Sur une installation neuve, la diffusion et la
+reconnaissance sont désactivées.
 
-- Une entrée micro USB n'est pas forcément une entrée ligne stéréo adaptée.
-- La platine doit sortir en LINE ou passer par un préampli phono.
-- Le transport actuel est en PCM stéréo 16 bits / 44,1 kHz.
-- Le délai demandé n'est pas une mesure de latence acoustique.
-- La connexion automatique peut manquer le début d'un morceau pendant la négociation.
-- La reconnaissance des titres est facultative et contacte un service externe.
-- La partie TV et le pilote matériel expérimental ne font pas partie de cette alpha.
+## Guides
 
-[Installation détaillée](SETUP.md) · [Compatibilité](COMPATIBILITY.md) ·
-[Contribuer](../CONTRIBUTING.md) · [Feuille de route](../ROADMAP.md)
+- [Installation et branchement](INSTALLATION.md)
+- [Utilisation](USAGE.md)
+- [Configuration et accès depuis un téléphone](CONFIGURATION.md)
+- [Dépannage](TROUBLESHOOTING.md)
 
-Licence GPL-3.0-or-later. Projet indépendant, sans affiliation avec Apple.
+Pour participer : [contributions](../CONTRIBUTING.md),
+[discussions](https://github.com/bastiencantet/vinyl-airplay/discussions) et
+[feuille de route](../ROADMAP.md).
+
+Licence [GPL-3.0-or-later](../LICENSE). Projet indépendant d'Apple.
