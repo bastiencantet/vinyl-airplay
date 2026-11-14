@@ -68,8 +68,8 @@ recording their origin. No Apple firmware or recordings belong in this repositor
 
 ## Controller environment
 
-The community launcher sets these automatically. They are useful when running
-the controller directly or preparing service packaging.
+These variables apply to the standalone `vinyl-control` HTTP adapter. The native
+web launcher uses command-line options; the desktop app manages its own state directory.
 
 | Variable | Purpose |
 |---|---|

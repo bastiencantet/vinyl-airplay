@@ -29,10 +29,10 @@ struct Args {
 fn default_state() -> Result<PathBuf> {
     #[cfg(windows)]
     {
-        return Ok(PathBuf::from(
+        Ok(PathBuf::from(
             std::env::var_os("LOCALAPPDATA").context("LOCALAPPDATA is unavailable; use --state")?,
         )
-        .join("vinyl-airplay-web"));
+        .join("vinyl-airplay-web"))
     }
     #[cfg(not(windows))]
     {
