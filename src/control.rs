@@ -198,7 +198,7 @@ async fn meter_stream(State(app): State<Arc<App>>) -> impl IntoResponse {
             if sent && receiver.changed().await.is_err() {
                 return None;
             }
-            let value = receiver.borrow().clone();
+            let value = receiver.borrow_and_update().clone();
             let event = Event::default().data(value.to_string());
             Some((Ok::<_, std::convert::Infallible>(event), (receiver, true)))
         });
@@ -314,7 +314,8 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
     #[cfg(unix)]
     cmd.as_std_mut().process_group(0);
     #[cfg(windows)]
-    cmd.creation_flags(0x00000200); // CREATE_NEW_PROCESS_GROUP: controller Ctrl-Break must not kill audio before TEARDOWN.
+    // No console window in the desktop app. Shutdown uses the private named pipe.
+    cmd.creation_flags(0x00000200 | 0x08000000); // CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     let mut child = cmd.spawn().context("Démarrer le programme audio")?;
     let stderr = child.stderr.take().context("stderr")?;
     let status = app.status.clone();

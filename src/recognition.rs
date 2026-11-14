@@ -122,6 +122,8 @@ pub fn fingerprint_program() -> Result<PathBuf> {
 }
 
 async fn process(mut command: Command, input: Option<&[u8]>, limit: u64) -> Result<Vec<u8>> {
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW for optional helper/HTTP processes.
     command
         .kill_on_drop(true)
         .stdin(if input.is_some() {

@@ -9,7 +9,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Linux distribution/kernel, CPU architecture, input interface, receiver model and firmware.
+      description: App version and build commit, OS/version, CPU architecture, input interface, receiver model and firmware. Say whether you use the desktop app, web UI or CLI.
     validations:
       required: true
   - type: textarea

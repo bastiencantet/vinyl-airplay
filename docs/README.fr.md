@@ -19,6 +19,11 @@ Voir la [compatibilité et les limites connues](COMPATIBILITY.md).
 
 ## Démarrage rapide
 
+L'application graphique dispose de candidats alpha pour Mac Apple Silicon et
+Intel, Windows x64 et Linux x64. Consulte le [guide des installateurs](DESKTOP.md)
+pour les téléchargements et les limites de validation, ainsi que la
+[confidentialité](PRIVACY.md). L'interface actuelle est en français.
+
 Prérequis : **Rust/Cargo** et une entrée audio. Linux nécessite
 aussi les en-têtes de développement ALSA et `pkg-config`. Les enceintes doivent
 être sur le même réseau. Le backend natif est choisi à la compilation pour Linux,

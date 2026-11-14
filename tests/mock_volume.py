@@ -1,7 +1,7 @@
 """Independent encrypted volume test: per-speaker control, native dvlc and bit-exact PCM.
 No real ALSA device or HomePod is contacted.
 """
-import asyncio,json,os,pathlib,struct,sys,tempfile,uuid
+import asyncio,json,os,pathlib,struct,subprocess,sys,tempfile,uuid
 from mock_homepods import Receiver
 
 async def main(binary):
@@ -12,7 +12,9 @@ async def main(binary):
     with tempfile.TemporaryDirectory() as temp:
         path=pathlib.Path(r'\\.\pipe\vinyl-volume-'+str(uuid.uuid4())) if os.name == 'nt' else pathlib.Path(temp)/'audio.sock'
         pcm=struct.pack('>hh',1000,1000)*352*1000
-        proc=await asyncio.create_subprocess_exec(binary,'stream','--target',f'127.0.0.1:{ports[0]}','--target',f'127.0.0.1:{ports[1]}',stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env={**os.environ,'VINYL_CONTROL_SOCKET':str(path)})
+        # Match the desktop's console-free worker, including private pipe control.
+        flags=(subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == 'nt' else 0
+        proc=await asyncio.create_subprocess_exec(binary,'stream','--target',f'127.0.0.1:{ports[0]}','--target',f'127.0.0.1:{ports[1]}',stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env={**os.environ,'VINYL_CONTROL_SOCKET':str(path)},creationflags=flags)
         output=asyncio.create_task(proc.communicate(pcm))
         async def rpc(request):
             if os.name == 'nt':
