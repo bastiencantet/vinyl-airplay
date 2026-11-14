@@ -58,7 +58,8 @@ when an image is available for the discovered model and color.
 
 | Option | Purpose |
 |---|---|
-| `--alsa-device` | Required ALSA capture identifier |
+| `--input-device` | Native input ID; system default if omitted |
+| `--alsa-device` | Legacy Linux ALSA input; mutually exclusive with native capture |
 | `--listen` | Specific private IPv4; loopback by default |
 | `--port` | Web port; defaults to 8787 |
 | `--state` | Settings and log directory |

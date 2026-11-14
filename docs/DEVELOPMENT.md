@@ -1,11 +1,13 @@
 # Development
 
-Rust stable with edition 2024 support. Linux is the live-capture target. Python
+Rust stable with edition 2024 support. Native capture targets Linux, macOS and
+Windows. Python
 3.10+ is used for the optional web gateway and test emulators, not by the sender.
 
 ```sh
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
+cargo check --locked --all-targets --no-default-features
 cargo test --locked
 cargo build --locked
 node --check web/app.js
@@ -36,7 +38,10 @@ performance. Keep real speaker/network experiments explicit and separate.
 
 ## Layout
 
-- `src/`: sender, pairing, encrypted transport, timing, metadata and input handling.
+- `src/lib.rs`: shared Rust sender library, used by the CLI. The API is experimental.
+- `src/audio/`: compile-selected CPAL capture, bounded realtime queue and off-callback sinc resampling.
+- `src/ipc.rs`: private Unix socket / local-only Windows named-pipe transport.
+- `src/`: pairing, encrypted transport, timing, metadata and input handling.
 - `src/bin/vinyl-control.rs`: authenticated controller and child-process ownership.
 - `src/receivers.rs`: live Bonjour catalog, stable identity and enclosure color.
 - `web/`: browser interface and input measurements; no audio stream in the browser.
@@ -70,8 +75,22 @@ the controller directly or preparing service packaging.
 | `VINYL_ROOT` | Runtime state directory |
 | `VINYL_TOKEN_FILE` | File containing the API bearer token |
 | `VINYL_BIND` | Controller socket address; defaults to loopback |
-| `VINYL_ALSA_DEVICE` | ALSA input; defaults to `default` |
+| `VINYL_INPUT_DEVICE` | Native input ID; defaults to `default` |
+| `VINYL_ALSA_DEVICE` | Optional legacy ALSA input; takes precedence over native capture |
 | `VINYL_SENDER_BIN` | Sender binary; defaults to `bin/vinyl-airplay` under the state directory |
 
 The launcher keeps the controller on loopback, injects the token server-side,
 and exposes only the documented routes through the web gateway.
+
+## Native audio checks
+
+CI builds and tests the sender and controller on Linux, macOS and Windows. Linux
+builds require ALSA development headers. `--no-default-features` additionally
+checks that headless deployments can exclude native capture. macOS builds link
+Core Audio; Windows builds use WASAPI. No ASIO SDK or user-facing OS selector is
+required. `cargo tree --target TARGET` shows dependencies for a particular target.
+
+Synthetic audio tests check 44.1 kHz PCM preservation, channel order, mono
+duplication, 48 kHz conversion duration/pitch and explicit overrun handling. IPC
+roundtrip and volume emulators cover both local transports. These checks do not
+establish microphone permissions, acoustic latency or working hardware capture.

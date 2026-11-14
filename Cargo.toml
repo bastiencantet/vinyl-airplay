@@ -9,7 +9,14 @@ edition = "2024"
 default-run = "vinyl-airplay"
 description = "Experimental native Rust AirPlay sender for live vinyl audio and HomePod research"
 
+[features]
+default = ["native-audio"]
+native-audio = ["dep:cpal", "dep:rtrb", "dep:rubato", "dep:audioadapter-buffers"]
+
 [dependencies]
+audioadapter-buffers = { version = "5.1", optional = true }
+rtrb = { version = "0.4", optional = true }
+rubato = { version = "5.1", default-features = false, optional = true }
 anyhow = "1"
 axum = { version = "0.8", default-features = false, features = ["json", "http1", "tokio"] }
 chacha20poly1305 = "0.10"
@@ -27,3 +34,5 @@ subtle = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "io-std", "time", "signal", "sync", "process"] }
 uuid = { version = "1", features = ["v4"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+cpal = { version = "0.18.2", optional = true }

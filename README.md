@@ -5,8 +5,7 @@
 [![Checks](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/check.yml/badge.svg)](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/check.yml)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL_v3%2B-blue.svg)](LICENSE)
 
-Stream a turntable or other line-level audio source from Linux to HomePod and
-HomePod mini. Vinyl AirPlay is written in Rust and includes a local web interface.
+Stream a turntable, USB audio interface or microphone to HomePod and HomePod mini. Vinyl AirPlay is written in Rust and includes a local web interface.
 Your phone controls playback; it does not relay the audio.
 
 **Alpha software.** Tested with HomePod (1st generation) and HomePod mini.
@@ -22,7 +21,9 @@ See [compatibility and known limitations](docs/COMPATIBILITY.md).
 
 ## Quick start
 
-Requires **Linux**, **Rust/Cargo**, **alsa-utils** and **Python 3.10+**.
+Requires **Rust/Cargo** and **Python 3.10+**. Linux also needs the ALSA development
+package. Native backends are selected at compile time for Linux, macOS and Windows;
+physical capture/playback validation is still Linux-only.
 Connect a stereo line input and keep the speakers on the same local network.
 See [installation](docs/INSTALLATION.md) for wiring and prerequisites.
 
@@ -30,17 +31,16 @@ See [installation](docs/INSTALLATION.md) for wiring and prerequisites.
 git clone https://github.com/bastiencantet/vinyl-airplay.git
 cd vinyl-airplay
 cargo build --release --locked
-arecord -L
+./target/release/vinyl-airplay audio-inputs
 ```
 
-Choose your input from `arecord -L`, then launch the web interface. Replace
-`YOUR_ALSA_INPUT` with that identifier:
+Launch with the system default input, or select an input ID with `--input-device`:
 
 ```sh
-python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+python3 scripts/serve-web.py
 ```
 
-Open **http://localhost:8787/** on the Linux computer. Select a speaker, apply
+Open **http://localhost:8787/** on the computer running the sender. Select a speaker, apply
 the selection, then start playback. To control it from your phone, follow
 [access from another device](docs/CONFIGURATION.md#network-access).
 
