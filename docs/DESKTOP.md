@@ -10,7 +10,13 @@ the publisher and is not Apple notarization.
 
 ## Download an alpha candidate
 
-Open [Desktop checks](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/desktop.yml),
+Published alphas are listed under
+[Releases](https://github.com/bastiencantet/vinyl-airplay/releases). Download the
+installer for your platform and `SHA256SUMS.txt`; a GitHub account is not required.
+These builds have no verified publisher signature.
+
+For development candidates, open
+[Desktop checks](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/desktop.yml),
 choose a successful run on `main`, then download the artifact for your computer.
 GitHub requires sign-in for workflow artifacts; they expire after 30 days. A run
 on a pull-request branch is a development candidate, not a stable release.
@@ -22,7 +28,7 @@ on a pull-request branch is a development candidate, not a stable release.
 | Windows x64 | `vinyl-airplay-windows-x64-alpha` | setup `.exe` |
 | Linux x64 | `vinyl-airplay-linux-x64-alpha` | `.deb` or `.AppImage` |
 
-Extract the artifact first. Every archive includes `SHA256SUMS.txt`, source commit
+Extract workflow artifacts first. Every archive includes `SHA256SUMS.txt`, source commit
 and architecture in `build.json`, this guide and license notices. Check the hash
 of the installer before opening it:
 

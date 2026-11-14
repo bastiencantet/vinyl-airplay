@@ -23,9 +23,11 @@ See [compatibility and known limitations](docs/COMPATIBILITY.md).
 
 A native desktop interface lets you choose an audio input,
 select discovered speakers and control playback from the app or tray icon.
-Download unsigned test installers from the latest successful
-[Desktop checks run](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/desktop.yml)
-(GitHub sign-in required), or build from source.
+Download published alpha installers from
+[Releases](https://github.com/bastiencantet/vinyl-airplay/releases), or build from source.
+Development candidates are also available from successful
+[Desktop checks runs](https://github.com/bastiencantet/vinyl-airplay/actions/workflows/desktop.yml)
+(GitHub sign-in required for workflow artifacts).
 See [desktop installation and scope](docs/DESKTOP.md).
 Mac Apple Silicon/Intel, Windows x64 and Linux x64 packages are built automatically;
 these are alpha candidates, with field testing still needed on macOS and Windows.
