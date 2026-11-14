@@ -70,3 +70,11 @@ when an image is available for the discovered model and color.
 
 For the controller's environment variables and development setup, see
 [development](DEVELOPMENT.md).
+
+### Live spectrum
+
+The input spectrum has 20 logarithmic bands from 32 Hz to 20 kHz. It uses a
+4096-sample symmetric Hann window and averages stereo channel power, preserving
+out-of-phase signals. Values are measured before digital gain and published
+with the meters approximately five times per second. UI animation can be
+smoothed independently; the analysis window does not delay playback.

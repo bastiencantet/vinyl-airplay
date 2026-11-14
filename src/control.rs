@@ -96,7 +96,7 @@ struct Status {
     meter_at: u64,
     channels_rms_dbfs: Option<[f64; 2]>,
     channels_peak_dbfs: Option<[f64; 2]>,
-    spectrum_dbfs: Option<[f64; 12]>,
+    spectrum_dbfs: Option<[f64; 20]>,
     schedule_ms: Option<f64>,
     track: Value,
     error: Option<String>,
