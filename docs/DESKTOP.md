@@ -4,7 +4,9 @@
 
 The Tauri desktop app embeds the Rust sender and recognition helper. It uses
 native audio inputs and a local Rust controller, without Python or a web server.
-This is an unsigned alpha; there is no signed stable installer yet.
+This alpha has no verified publisher signature; there is no stable installer yet.
+Mac bundles use an ad-hoc signature to seal their contents. This does not verify
+the publisher and is not Apple notarization.
 
 ## Download an alpha candidate
 
@@ -74,7 +76,8 @@ npm run desktop:build
 Tauri writes bundles under `src-tauri/target/release/bundle/`, or under
 `CARGO_TARGET_DIR/release/bundle/` when that variable is set. `--debug` bundles
 are for testing, not signed production releases. Signing and notarization are
-not configured in this alpha.
+not configured with a publisher certificate in this alpha. On a headless Mac,
+set `CI=true` to skip Finder's optional DMG window styling.
 
 ## Use
 

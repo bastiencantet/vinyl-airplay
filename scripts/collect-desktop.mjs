@@ -50,7 +50,8 @@ for (const extension of expected.extensions) {
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 await writeFile(join(output, 'SHA256SUMS.txt'), artifacts.map(a => `${a.sha256}  ${a.name}\n`).join(''));
 await writeFile(join(output, 'build.json'), JSON.stringify({
-  version, platform, host, commit, channel: 'alpha', signed: false, artifacts,
+  version, platform, host, commit, channel: 'alpha', publisher_signed: false,
+  ad_hoc_signed: platform.startsWith('macos-'), artifacts,
 }, null, 2) + '\n');
 for (const name of ['LICENSE', 'NOTICE']) await copyFile(join(root, name), join(output, name));
 await copyFile(join(root, 'docs/DESKTOP.md'), join(output, 'DESKTOP.md'));

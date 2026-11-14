@@ -54,6 +54,11 @@ jobs:
       - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: node scripts/prepare-desktop.mjs
       - run: npx tauri build --bundles ${{ matrix.bundles }} --ci
+      - if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          codesign --verify --deep --strict "target/release/bundle/macos/Vinyl AirPlay.app"
+          for image in target/release/bundle/dmg/Vinyl\ AirPlay_*.dmg; do hdiutil verify "$image"; done
       - run: node scripts/collect-desktop.mjs ${{ matrix.platform }}
       - uses: actions/upload-artifact@v4
         with:
