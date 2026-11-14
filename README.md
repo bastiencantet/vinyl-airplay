@@ -19,9 +19,16 @@ See [compatibility and known limitations](docs/COMPATIBILITY.md).
 - Optionally identify songs and display album artwork.
 - Run locally without an account or subscription.
 
+## Desktop app (alpha)
+
+A native desktop interface is available for source builds: choose an audio input,
+select discovered speakers and control playback from the app or tray icon.
+See [desktop installation and scope](docs/DESKTOP.md). Signed installers are not
+available yet.
+
 ## Quick start
 
-Requires **Rust/Cargo** and **Python 3.10+**. Linux also needs the ALSA development
+Requires **Rust/Cargo**. Linux also needs the ALSA development
 package. Native backends are selected at compile time for Linux, macOS and Windows;
 physical capture/playback validation is still Linux-only.
 Connect a stereo line input and keep the speakers on the same local network.
@@ -37,7 +44,7 @@ cargo build --release --locked
 Launch with the system default input, or select an input ID with `--input-device`:
 
 ```sh
-python3 scripts/serve-web.py
+./target/release/vinyl-web
 ```
 
 Open **http://localhost:8787/** on the computer running the sender. Select a speaker, apply

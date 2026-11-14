@@ -7,7 +7,7 @@
 Start the launcher from the project directory:
 
 ```sh
-python3 scripts/serve-web.py --input-device default
+./target/release/vinyl-web --input-device default
 ```
 
 Open **http://localhost:8787/** on the same computer.

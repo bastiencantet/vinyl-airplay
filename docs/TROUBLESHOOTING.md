@@ -29,7 +29,7 @@ analog distortion, capture clipping or noise already present in the record.
 ## Logs
 
 The launcher prints controller output in its terminal. Capture logs are stored in
-`~/.local/state/vinyl-airplay/control/audio.log`; the web interface also shows
+`control/audio.log` under the [state directory](CONFIGURATION.md#playback-settings); the web interface also shows
 recent output under its technical status panel.
 
 ## Get help

@@ -14,3 +14,5 @@ installation guide, then use the browser interface or command line.
 
 [Présentation en français](README.fr.md) · [Contributing](../CONTRIBUTING.md) ·
 [Roadmap](../ROADMAP.md)
+
+- [Desktop app](DESKTOP.md): native window, input selection and background controls.

@@ -1,23 +1,33 @@
 'use strict';
 const $=id=>document.getElementById(id);
+const desktop = Boolean(window.__TAURI__?.core?.invoke);
+if (desktop) { document.body.classList.add('desktop'); $('backgroundNote').hidden = false; }
+let artworkUrl = '';
+let desktopVisible = true;
+let inputDevices = [], legacyInput = null;
+
 let saved=null,busy=false,online=false,artworkKey='',needsRestart=false,polling=false,meterPolling=false;
 let selected=new Set(),devices=new Map(),lastMeter=null;
 const cards=new Map(),volumeBusy=new Set(),volumeDirty=new Set();
-const phases={stopped:'Diffusion arrêtée',starting:'Démarrage…',monitoring:'En veille · à l’écoute de la platine',connecting:'Connexion aux enceintes…',playing:'Diffusion en cours',disconnecting:'Libération des enceintes…',error:'À vérifier'};
+const phases={stopped:'Diffusion arrêtée',starting:'Démarrage…',monitoring:'En veille · à l’écoute de l’entrée',connecting:'Connexion aux enceintes…',playing:'Diffusion en cours',disconnecting:'Libération des enceintes…',error:'À vérifier'};
 const frequencies=['60','120','200','320','500','800','1,2k','2k','3,2k','5k','8k','14k'];
 const bars=frequencies.map((hz,i)=>{const bar=document.createElement('span');bar.className='spectrum-band';const fill=document.createElement('i');fill.style.height='0%';bar.append(fill);$('spectrum').append(bar);return fill;});
-function draft(){return {enabled:saved?.enabled??false,auto_connect:$('auto').checked,targets:[...selected].sort(),latency_ms:Number($('latency').value),gain_db:Number($('gain').value),recognize:$('recognize').checked};}
+function draft(){return {input_device:$('inputDevice').value,enabled:saved?.enabled??false,auto_connect:$('auto').checked,targets:[...selected].sort(),latency_ms:Number($('latency').value),gain_db:Number($('gain').value),recognize:$('recognize').checked};}
 function dirty(){return saved&&JSON.stringify(draft())!==JSON.stringify({...saved,targets:[...saved.targets].sort()});}
 function labels(){
  $('latencyValue').textContent=$('latency').value+' ms';const gain=Number($('gain').value);$('gainValue').textContent=(gain>0?'+':'')+gain+' dB';
  document.querySelectorAll('[data-ms]').forEach(b=>b.classList.toggle('selected',b.dataset.ms===$('latency').value));
  $('gainHelp').textContent=gain!==0?'Le gain reste fixe. Surveille la marge avant saturation.':'0 dB conserve les échantillons capturés.';
- $('apply').disabled=!online||busy||!dirty()||!selected.size;
- $('changeHint').textContent=dirty()?'Appliquer reconnectera brièvement les enceintes.':'Les réglages actuels sont chargés.';
+ $('apply').disabled=!online||busy||!dirty()||(Boolean(saved?.enabled)&&!selected.size);
+ $('apply').textContent=saved?.enabled?'Appliquer les réglages':'Enregistrer les réglages';
+ $('inputDevice').disabled=busy||!online||Boolean(legacyInput);
+ if(legacyInput){$('inputHelp').textContent='Capture ALSA : '+legacyInput;$('refreshInputs').hidden=true;}
+ $('changeHint').textContent=dirty()?(saved?.enabled?'Appliquer reconnectera brièvement les enceintes.':'Les réglages seront utilisés au prochain démarrage.'):'Les réglages actuels sont chargés.';
+ $('power').disabled=!online||busy||(!saved?.enabled&&!selected.size);
  for(const [id,card] of cards){const on=selected.has(id);card.root.classList.toggle('selected',on);card.select.setAttribute('aria-pressed',String(on));card.check.textContent=on?'✓':'+';card.volume.hidden=!on;}
 }
-function fill(c){saved={enabled:c.enabled,auto_connect:c.auto_connect,targets:c.targets,latency_ms:c.latency_ms,gain_db:c.gain_db,recognize:c.recognize};selected=new Set(c.targets);$('auto').checked=c.auto_connect;$('recognize').checked=c.recognize;$('latency').value=c.latency_ms;$('gain').value=c.gain_db;labels();}
-async function api(path,config){const r=await fetch('/api/'+path,{method:config?'POST':'GET',headers:config?{'Content-Type':'application/json','X-Vinyl-Control':'1'}:{},body:config?JSON.stringify(config):undefined,signal:AbortSignal.timeout(path==='meter'?1200:path==='video'?25000:20000),cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error(data.error||'Le serveur ne répond pas correctement.');return data;}
+function fill(c){saved={input_device:c.input_device||'default',enabled:c.enabled,auto_connect:c.auto_connect,targets:c.targets,latency_ms:c.latency_ms,gain_db:c.gain_db,recognize:c.recognize};ensureInput(saved.input_device);$('inputDevice').value=saved.input_device;selected=new Set(c.targets);$('auto').checked=c.auto_connect;$('recognize').checked=c.recognize;$('latency').value=c.latency_ms;$('gain').value=c.gain_db;labels();}
+async function api(path,config){if(desktop){try{return await window.__TAURI__.core.invoke('control_request',{operation:path,payload:config??null});}catch(error){throw new Error(typeof error==='string'?error:'Le moteur audio ne répond pas.');}}const r=await fetch('/api/'+path,{method:config?'POST':'GET',headers:config?{'Content-Type':'application/json','X-Vinyl-Control':'1'}:{},body:config?JSON.stringify(config):undefined,signal:AbortSignal.timeout(path==='meter'?1200:path==='video'?25000:20000),cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error(data.error||'Le serveur ne répond pas correctement.');return data;}
 function showError(e){$('error').hidden=!e;$('error').textContent=e||'';}
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text)e.textContent=text;return e;}
 // Select artwork from discovered device metadata, never a room name or device ID.
@@ -62,6 +72,7 @@ function updateDevices(data){
  const visible=[...devices.values()].filter(d=>d.available||selected.has(d.id)).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
  $('deviceCount').textContent=visible.filter(d=>d.available).length+' disponible'+(visible.filter(d=>d.available).length>1?'s':'');
  $('deviceEmpty').hidden=!!visible.length;
+ $('deviceEmpty').textContent='Aucune enceinte détectée pour le moment. Vérifie qu’elle est sur le même réseau.';
  for(const d of visible){const c=cards.get(d.id)||makeCard(d);c.name.textContent=d.name;
   const iconKey=d.model+":"+d.enclosure_color;if(c.iconKey!==iconKey){const icon=speakerIcon(d);c.icon.replaceWith(icon);c.icon=icon;c.iconKey=iconKey;}
   c.select.disabled=busy||!online||(!d.available&&!selected.has(d.id));c.status.textContent=d.available?(d.model.startsWith('AudioAccessory')?(d.model==='AudioAccessory5,1'?'HomePod mini · disponible':'HomePod · disponible'):'AirPlay · compatibilité à vérifier'):'Hors ligne · sélection conservée';c.root.classList.toggle('offline',!d.available);
@@ -84,20 +95,58 @@ function renderMeter(s){
  const after=fresh?s.peak_dbfs+Number($('gain').value):null,clipping=after!==null&&after>=0;
  $('headroom').textContent=after===null?'Mesure avant gain':clipping?'Saturation possible avec ce gain':Math.max(0,-after).toFixed(1)+' dB de marge avec ce gain';$('headroom').classList.toggle('warning',clipping);
 }
-async function poll(force=false){if(polling)return;polling=true;try{const data=await api('state');online=true;$('connection').textContent='Maison connectée';$('connection').className='connection online';if(!saved||force||!dirty())fill(data.config);updateDevices(data);const s=data.status;
- $('phase').textContent=phases[s.phase]||s.phase;needsRestart=data.config.enabled&&!data.running;$('powerText').textContent=needsRestart?'Relancer':data.config.enabled?'Arrêter':'Démarrer';$('powerIcon').textContent=data.config.enabled?'■':'▶';$('power').disabled=busy;
- $('route').textContent=data.config.targets.map(id=>devices.get(id)?.name||'Enceinte mémorisée').join(' + ');
- const track=s.track||{};$('title').textContent=track.title||(s.phase==='playing'?'À l’écoute du vinyle':'Prêt pour un vinyle');$('artist').textContent=track.artist||'Entrée audio';$('album').textContent=track.album||(data.config.recognize?'Reconnaissance après environ 12 s de musique.':'Reconnaissance des morceaux désactivée.');
- const key=track.artwork?track.key:'';if(key!==artworkKey){artworkKey=key;$('artwork').hidden=!key;if(key)$('artwork').src='/api/artwork?v='+encodeURIComponent(key);}
- renderMeter({...s,server_time:data.server_time});$('technical').textContent=`Entrée audio Linux · stéréo · PCM 44,1 kHz / 16 bits. Délai demandé : ${data.config.latency_ms} ms. Spectre : 12 bandes, calculé sur l’entrée avant gain. Les barres représentent le signal capturé, avec le délai de rafraîchissement du navigateur. La latence acoustique n’est pas mesurée.`;
+async function poll(force=false){if(polling)return;polling=true;try{const data=await api('state');legacyInput=data.legacy_input||null;online=true;$('connection').textContent=desktop?'Moteur audio prêt':'Contrôleur connecté';$('connection').className='connection online';if(!saved||force||!dirty())fill(data.config);updateDevices(data);const s=data.status;
+ $('phase').textContent=phases[s.phase]||s.phase;needsRestart=data.config.enabled&&!data.running;$('powerText').textContent=needsRestart?'Relancer':data.config.enabled?'Arrêter':'Démarrer';$('powerIcon').textContent=data.config.enabled?'■':'▶';$('power').disabled=busy||(!data.config.enabled&&!selected.size);
+ $('route').textContent=data.config.targets.map(id=>devices.get(id)?.name||'Enceinte mémorisée').join(' + ')||'Choisis une enceinte pour démarrer';
+ const track=s.track||{};$('title').textContent=track.title||(s.phase==='playing'?'À l’écoute':'Prêt à diffuser');$('artist').textContent=track.artist||'Entrée audio';$('album').textContent=track.album||(data.config.recognize?'Reconnaissance après environ 12 s de musique.':'Reconnaissance des morceaux désactivée.');
+ const key=track.artwork?track.key:'';if(key!==artworkKey){artworkKey=key;$('artwork').hidden=!key;if(key)loadArtwork(key);}
+ renderMeter({...s,server_time:data.server_time});$('technical').textContent=`Entrée audio native · stéréo · PCM 44,1 kHz / 16 bits. Délai demandé : ${data.config.latency_ms} ms. Spectre : 12 bandes, calculé sur l’entrée avant gain. Les barres représentent le signal capturé, avec le délai de rafraîchissement du navigateur. La latence acoustique n’est pas mesurée.`;
  $('logs').textContent=(s.logs||[]).join('\n');showError(s.error||'');labels();
  }catch(e){online=false;$('connection').textContent='Connexion interrompue';$('connection').className='connection';$('power').disabled=true;$('apply').disabled=true;for(const c of cards.values()){c.input.disabled=true;c.select.disabled=true;}renderMeter({});showError('Le contrôleur est injoignable. Nouvelle tentative automatique.');}finally{polling=false;}}
-async function meterPoll(){if(meterPolling||!online||document.hidden)return;meterPolling=true;try{renderMeter(await api('meter'));}catch{renderMeter({});}finally{meterPolling=false;}}
+async function meterPoll(){if(meterPolling||!online||document.hidden||!desktopVisible)return;meterPolling=true;try{renderMeter(await api('meter'));}catch{renderMeter({});}finally{meterPolling=false;}}
 async function submit(c){busy=true;labels();$('power').disabled=true;showError('');try{await api('config',c);fill(c);await poll(true);}catch(e){showError(e.message);}finally{busy=false;await poll();labels();}}
-$('apply').onclick=()=>submit(draft());$('power').onclick=()=>{if(saved&&!busy)submit({...saved,enabled:needsRestart||!saved.enabled});};
-[$('auto'),$('recognize'),$('gain'),$('latency')].forEach(el=>el.addEventListener('input',()=>{labels();if(lastMeter)renderMeter(lastMeter);}));
+$('apply').onclick=()=>submit(draft());$('power').onclick=()=>{if(saved&&!busy)submit(saved.enabled&&!needsRestart?{...saved,enabled:false}:{...draft(),enabled:true});};
+[$('auto'),$('recognize'),$('gain'),$('latency'),$('inputDevice')].forEach(el=>el.addEventListener('input',()=>{labels();if(lastMeter)renderMeter(lastMeter);}));
 // Meter freshness uses the capture host clock, never the phone clock.
 document.querySelectorAll('[data-ms]').forEach(b=>b.onclick=()=>{$('latency').value=b.dataset.ms;labels();});
+$('refreshInputs').onclick=refreshInputs;
+refreshInputs();
 $('artwork').onerror=()=>{$('artwork').hidden=true;artworkKey='';};
-poll();setInterval(()=>{if(!busy&&!document.hidden)poll();},2000);setInterval(meterPoll,200);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!busy){poll();meterPoll();}});
+poll();setInterval(()=>{if(!busy&&!document.hidden&&desktopVisible)poll();},2000);setInterval(meterPoll,200);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!busy){poll();meterPoll();}});
 
+
+function ensureInput(id) {
+ if (![...$('inputDevice').options].some(option=>option.value===id)) {
+  const option=document.createElement('option'); option.value=id; option.textContent='Entrée mémorisée · indisponible'; $('inputDevice').append(option);
+ }
+}
+async function refreshInputs() {
+ const button=$('refreshInputs'); button.disabled=true;
+ const current=$('inputDevice').value;
+ try {
+  const data=await api('inputs'); inputDevices=data.inputs||[];
+  $('inputDevice').replaceChildren();
+  const fallback=document.createElement('option'); fallback.value='default'; fallback.textContent='Entrée par défaut du système'; $('inputDevice').append(fallback);
+  for (const input of inputDevices) {
+   const option=document.createElement('option'); option.value=input.id; option.textContent=input.name+(input.default?' · par défaut':''); $('inputDevice').append(option);
+  }
+  ensureInput(current); $('inputDevice').value=current;
+  $('inputHelp').textContent=inputDevices.length ? `${data.backend} · ${inputDevices.length} entrée${inputDevices.length>1?'s':''} disponible${inputDevices.length>1?'s':''}. Autorise la capture audio au premier démarrage.` : 'Aucune entrée détectée. Branche une interface audio et actualise.';
+ } catch(error) { $('inputHelp').textContent=error.message; }
+ finally { button.disabled=false; labels(); }
+}
+async function loadArtwork(key) {
+ try {
+  if (!desktop) { $('artwork').src='/api/artwork?v='+encodeURIComponent(key); return; }
+  const bytes=await window.__TAURI__.core.invoke('track_artwork');
+  if(artworkKey!==key)return;
+  if(artworkUrl)URL.revokeObjectURL(artworkUrl);
+  artworkUrl=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:'image/jpeg'}));
+  $('artwork').src=artworkUrl;
+ } catch { $('artwork').hidden=true; artworkKey=''; }
+}
+
+if(desktop)window.__TAURI__.event.listen('desktop-visible',({payload})=>{
+ desktopVisible=payload;
+ if(payload){poll();meterPoll();}
+});

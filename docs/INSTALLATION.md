@@ -12,7 +12,6 @@ are not available yet. Check [compatibility](COMPATIBILITY.md) before buying har
 - Windows: the Rust MSVC toolchain and Visual Studio C++ Build Tools.
 - Rust/Cargo with edition 2024 support.
 - `alsa-utils` only for the optional legacy Linux capture path.
-- Python 3.10+ for the web interface.
 - A HomePod or HomePod mini on the same local network.
 
 Install system dependencies with your distribution's package manager. The
@@ -39,7 +38,7 @@ cd vinyl-airplay
 cargo build --release --locked
 ```
 
-This builds the sender and controller in `target/release/`.
+This builds the sender, native web launcher and standalone controller adapter in `target/release/`.
 
 ## Select an input
 
@@ -71,11 +70,11 @@ and use `--alsa-device YOUR_ALSA_INPUT` instead of `--input-device`.
 Use the default input:
 
 ```sh
-python3 scripts/serve-web.py
+./target/release/vinyl-web
 ```
 
-Pass `--input-device INPUT_ID` to choose another input. On Windows, run the
-launcher with `python` rather than `python3`.
+Pass `--input-device INPUT_ID` to choose another input. On Windows, use
+`target/release/vinyl-web.exe`. The UI is embedded in the Rust binary.
 
 Open **http://localhost:8787/** on the computer running the sender. Playback is disabled on
 a fresh installation. Choose a speaker and follow the [usage guide](USAGE.md).
@@ -89,7 +88,7 @@ The native backend is enabled by default. To retain only stdin and the legacy
 
 ```sh
 cargo build --release --locked --no-default-features
-python3 scripts/serve-web.py --alsa-device YOUR_ALSA_INPUT
+./target/release/vinyl-web --alsa-device YOUR_ALSA_INPUT
 ```
 
 This does not include native capture. Each OS needs its own compiled artifact;

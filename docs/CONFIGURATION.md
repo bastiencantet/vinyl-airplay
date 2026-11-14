@@ -4,11 +4,14 @@
 
 ## Playback settings
 
-The web interface saves settings in `~/.local/state/vinyl-airplay/control/config.json`.
+On Linux, the web launcher saves settings in `~/.local/state/vinyl-airplay/control/config.json`
+(or under `XDG_STATE_HOME`). macOS uses `~/Library/Application Support/vinyl-airplay-web`;
+Windows uses `%LOCALAPPDATA%/vinyl-airplay-web`. Use `--state` to select another directory.
 Existing settings are restored when the launcher restarts.
 
 | Setting | Default | Behavior |
 |---|---|---|
+| Input device | System default | Native input ID, saved with playback settings |
 | Playback | Off | Start after selecting a speaker |
 | Automatic connection | On | Connect on input activity; disconnect after silence |
 | Speakers | None | Select from discovered devices |
@@ -25,7 +28,7 @@ To use a phone on the same trusted Wi-Fi, replace `LINUX_HOST_IP` with the Linux
 computer's private IPv4 address:
 
 ```sh
-python3 scripts/serve-web.py \
+./target/release/vinyl-web \
   --alsa-device YOUR_ALSA_INPUT --listen LINUX_HOST_IP
 ```
 
@@ -33,8 +36,8 @@ Open `http://LINUX_HOST_IP:8787/` on the phone, using the same address.
 
 Anyone who can reach that endpoint on your trusted network can control playback.
 It uses HTTP without individual user login. Do not forward the port to the
-Internet. The underlying controller remains on loopback; its authentication
-token stays on the server.
+Internet. The controller runs in the launcher process; there is no proxy or second
+HTTP control port. Host and Origin checks protect local browser access.
 
 ## Song recognition
 
@@ -58,12 +61,11 @@ when an image is available for the discovered model and color.
 
 | Option | Purpose |
 |---|---|
-| `--input-device` | Native input ID; system default if omitted |
+| `--input-device` | Override saved input; otherwise restore the saved/default native input |
 | `--alsa-device` | Legacy Linux ALSA input; mutually exclusive with native capture |
 | `--listen` | Specific private IPv4; loopback by default |
 | `--port` | Web port; defaults to 8787 |
 | `--state` | Settings and log directory |
-| `--controller` | Path to the controller binary |
 | `--sender` | Path to the sender binary |
 
 For the controller's environment variables and development setup, see

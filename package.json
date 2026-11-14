@@ -1,0 +1,11 @@
+{
+  "name": "vinyl-airplay-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "desktop:prepare": "node scripts/prepare-desktop.mjs",
+    "desktop:dev": "node scripts/prepare-desktop.mjs --debug && tauri dev",
+    "desktop:build": "node scripts/prepare-desktop.mjs && tauri build"
+  },
+  "devDependencies": { "@tauri-apps/cli": "^2.12.4" }
+}

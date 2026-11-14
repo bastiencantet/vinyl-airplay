@@ -2,7 +2,7 @@
 
 Rust stable with edition 2024 support. Native capture targets Linux, macOS and
 Windows. Python
-3.10+ is used for the optional web gateway and test emulators, not by the sender.
+3.10+ is used only for independent protocol emulators; no application runtime requires it.
 
 ```sh
 cargo fmt --check
@@ -11,7 +11,6 @@ cargo check --locked --all-targets --no-default-features
 cargo test --locked
 cargo build --locked
 node --check web/app.js
-python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 For protocol emulators, use a virtual environment:
@@ -42,12 +41,14 @@ performance. Keep real speaker/network experiments explicit and separate.
 - `src/audio/`: compile-selected CPAL capture, bounded realtime queue and off-callback sinc resampling.
 - `src/ipc.rs`: private Unix socket / local-only Windows named-pipe transport.
 - `src/`: pairing, encrypted transport, timing, metadata and input handling.
-- `src/bin/vinyl-control.rs`: authenticated controller and child-process ownership.
+- `src/control.rs`: shared controller, playback settings and child-process ownership.
+- `src/bin/vinyl-control.rs`: authenticated HTTP adapter for the shared controller.
+- `src-tauri/`: native desktop window, tray, local IPC commands and OS packaging.
 - `src/receivers.rs`: live Bonjour catalog, stable identity and enclosure color.
 - `web/`: browser interface and input measurements; no audio stream in the browser.
-- `scripts/serve-web.py`: restricted same-origin gateway and local launcher.
+- `src/web.rs` and `src/bin/vinyl-web.rs`: embedded web UI and direct Rust controller launcher.
 - `tools/shazam-fingerprint/`: optional GPL SongRec-derived recognition helper.
-- `tests/`: unit-level gateway checks and independent protocol emulators.
+- `tests/`: native launcher lifecycle check and independent protocol emulators; Rust web trust-boundary tests live in `src/web.rs`.
 
 ## Protocol provenance
 
@@ -67,8 +68,8 @@ recording their origin. No Apple firmware or recordings belong in this repositor
 
 ## Controller environment
 
-The community launcher sets these automatically. They are useful when running
-the controller directly or preparing service packaging.
+These variables apply to the standalone `vinyl-control` HTTP adapter. The native
+web launcher uses command-line options; the desktop app manages its own state directory.
 
 | Variable | Purpose |
 |---|---|
@@ -79,8 +80,9 @@ the controller directly or preparing service packaging.
 | `VINYL_ALSA_DEVICE` | Optional legacy ALSA input; takes precedence over native capture |
 | `VINYL_SENDER_BIN` | Sender binary; defaults to `bin/vinyl-airplay` under the state directory |
 
-The launcher keeps the controller on loopback, injects the token server-side,
-and exposes only the documented routes through the web gateway.
+The standalone `vinyl-control` adapter retains its loopback bearer-token API.
+The native `vinyl-web` launcher instead calls the controller in process and
+exposes only the documented API/static routes, with Host, peer and CSRF checks.
 
 ## Native audio checks
 
