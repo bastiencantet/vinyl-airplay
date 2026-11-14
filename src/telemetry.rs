@@ -1,4 +1,4 @@
-//! Stereo spectrum and meters, five times per second. The PCM is never changed.
+//! Shared stereo spectrum at 30 Hz, analyzed off the audio loop. The PCM is never changed.
 const N: usize = 4096;
 const EDGES: [f64; 21] = [
     32.000000000000,
@@ -23,51 +23,87 @@ const EDGES: [f64; 21] = [
     14495.593273553906,
     20000.000000000000,
 ];
+const HOP: usize = 44100 / 30;
+struct Snapshot {
+    samples: Vec<[f64; 2]>,
+    power: [f64; 2],
+    peak: [u16; 2],
+}
 pub struct Meter {
     count: usize,
     power: [f64; 2],
     peak: [u16; 2],
     samples: Vec<[f64; 2]>,
+    next: usize,
+    output: std::sync::mpsc::SyncSender<Snapshot>,
 }
 impl Default for Meter {
     fn default() -> Self {
-        Self {
-            count: 0,
-            power: [0.; 2],
-            peak: [0; 2],
-            samples: Vec::with_capacity(N),
-        }
+        let (meter, receiver) = Self::channel();
+        std::thread::spawn(move || {
+            while let Ok(snapshot) = receiver.recv() {
+                let rms = snapshot.power.map(|p| db((p / HOP as f64).sqrt()));
+                let peak = snapshot.peak.map(|p| db(f64::from(p) / 32768.));
+                eprintln!(
+                    "control_event={}",
+                    serde_json::json!({
+                        "type":"meter", "rms_dbfs":db(((snapshot.power[0]+snapshot.power[1])/(2*HOP) as f64).sqrt()),
+                        "peak_dbfs":peak[0].max(peak[1]), "channels_rms_dbfs":rms,
+                        "channels_peak_dbfs":peak, "spectrum_dbfs":spectrum(&snapshot.samples)
+                    })
+                );
+            }
+        });
+        meter
     }
 }
 fn db(value: f64) -> f64 {
     20. * value.max(1e-6).log10()
 }
 impl Meter {
+    fn channel() -> (Self, std::sync::mpsc::Receiver<Snapshot>) {
+        let (output, receiver) = std::sync::mpsc::sync_channel(1);
+        (
+            Self {
+                count: 0,
+                power: [0.; 2],
+                peak: [0; 2],
+                samples: vec![[0.; 2]; N],
+                next: 0,
+                output,
+            },
+            receiver,
+        )
+    }
     pub fn observe(&mut self, pcm: &[u8]) {
         for frame in pcm.as_chunks::<4>().0 {
             let mut pair = [0.; 2];
             for c in 0..2 {
-                let s = i16::from_be_bytes([frame[c * 2], frame[c * 2 + 1]]);
-                pair[c] = f64::from(s) / 32768.;
-                self.peak[c] = self.peak[c].max(s.unsigned_abs());
+                let sample = i16::from_be_bytes([frame[c * 2], frame[c * 2 + 1]]);
+                pair[c] = f64::from(sample) / 32768.;
+                self.peak[c] = self.peak[c].max(sample.unsigned_abs());
                 self.power[c] += pair[c] * pair[c];
             }
+            self.samples[self.next] = pair;
+            self.next = (self.next + 1) % N;
             self.count += 1;
-            if self.samples.len() < N {
-                self.samples.push(pair);
+            if self.count == HOP {
+                // Overlapping, latest 4096-frame window, independent of packet boundaries.
+                let samples = self.samples[self.next..]
+                    .iter()
+                    .chain(&self.samples[..self.next])
+                    .copied()
+                    .collect();
+                // A delayed analyzer drops this display update, never waits on playback.
+                let _ = self.output.try_send(Snapshot {
+                    samples,
+                    power: self.power,
+                    peak: self.peak,
+                });
+                self.count = 0;
+                self.power = [0.; 2];
+                self.peak = [0; 2];
             }
-        }
-        if self.count >= 8820 {
-            let rms = self.power.map(|p| db((p / self.count as f64).sqrt()));
-            let peak = self.peak.map(|p| db(f64::from(p) / 32768.));
-            eprintln!(
-                "control_event={}",
-                serde_json::json!({"type":"meter", "rms_dbfs":db(((self.power[0]+self.power[1])/(2*self.count) as f64).sqrt()), "peak_dbfs":peak[0].max(peak[1]), "channels_rms_dbfs":rms,"channels_peak_dbfs":peak,"spectrum_dbfs":spectrum(&self.samples)})
-            );
-            self.count = 0;
-            self.power = [0.; 2];
-            self.peak = [0; 2];
-            self.samples.clear();
         }
     }
 }
@@ -127,11 +163,41 @@ fn spectrum(samples: &[[f64; 2]]) -> [f64; 20] {
 mod tests {
     use super::*;
     #[test]
+    fn publishes_thirty_overlapping_windows_independent_of_packet_boundaries() {
+        let (mut meter, receiver) = Meter::channel();
+        let pcm: Vec<_> = (0..44100u32)
+            .flat_map(|i| {
+                let sample = (i as i16).to_be_bytes();
+                [sample[0], sample[1], sample[0], sample[1]]
+            })
+            .collect();
+        let mut frames = Vec::new();
+        for chunk in pcm.chunks(352 * 4) {
+            meter.observe(chunk);
+            frames.extend(receiver.try_iter());
+        }
+        assert_eq!(frames.len(), 30);
+        let last = &frames.last().unwrap().samples;
+        assert_eq!(last.len(), 4096);
+        for (i, pair) in last.iter().enumerate() {
+            let expected = f64::from((44100 - 4096 + i) as i16) / 32768.;
+            assert_eq!(*pair, [expected, expected]);
+        }
+    }
+    #[test]
+    fn slow_analyzer_cannot_block_capture() {
+        let (mut meter, _receiver) = Meter::channel();
+        meter.observe(&vec![0; 44100 * 4]);
+        assert_eq!(meter.count, 0);
+    }
+    #[test]
     fn matches_original_tv_analysis_reference() {
         // Synthetic PCM fixture, with the original NumPy TV FFT as reference.
         let bytes = include_bytes!("../tests/fixtures/spectrum-reference.pcm");
         let samples: Vec<_> = bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|b| {
                 [
                     f64::from(i16::from_be_bytes([b[0], b[1]])) / 32768.,
