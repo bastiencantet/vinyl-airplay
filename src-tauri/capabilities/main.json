@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Local audio controls in the main window; no shell or filesystem API exposed to JavaScript.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

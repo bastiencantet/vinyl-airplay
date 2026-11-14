@@ -42,7 +42,9 @@ performance. Keep real speaker/network experiments explicit and separate.
 - `src/audio/`: compile-selected CPAL capture, bounded realtime queue and off-callback sinc resampling.
 - `src/ipc.rs`: private Unix socket / local-only Windows named-pipe transport.
 - `src/`: pairing, encrypted transport, timing, metadata and input handling.
-- `src/bin/vinyl-control.rs`: authenticated controller and child-process ownership.
+- `src/control.rs`: shared controller, playback settings and child-process ownership.
+- `src/bin/vinyl-control.rs`: authenticated HTTP adapter for the shared controller.
+- `src-tauri/`: native desktop window, tray, local IPC commands and OS packaging.
 - `src/receivers.rs`: live Bonjour catalog, stable identity and enclosure color.
 - `web/`: browser interface and input measurements; no audio stream in the browser.
 - `scripts/serve-web.py`: restricted same-origin gateway and local launcher.

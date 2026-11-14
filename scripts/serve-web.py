@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-READ_ROUTES = {'/api/state', '/api/meter', '/api/artwork'}
+READ_ROUTES = {'/api/state', '/api/meter', '/api/artwork', '/api/inputs'}
 WRITE_ROUTES = {'/api/config', '/api/volume'}
 STATIC = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
 
@@ -134,7 +134,9 @@ def main():
            'VINYL_BIND': f'127.0.0.1:{controller_port}',
            'VINYL_SENDER_BIN': str(args.sender.resolve())}
     env.pop('VINYL_ALSA_DEVICE', None)
-    env['VINYL_INPUT_DEVICE'] = args.input_device or 'default'
+    env.pop('VINYL_INPUT_DEVICE', None)
+    if args.input_device:
+        env['VINYL_INPUT_DEVICE'] = args.input_device
     if args.alsa_device:
         env['VINYL_ALSA_DEVICE'] = args.alsa_device
     child = subprocess.Popen([str(args.controller.resolve())], env=env,

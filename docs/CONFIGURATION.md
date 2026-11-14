@@ -9,6 +9,7 @@ Existing settings are restored when the launcher restarts.
 
 | Setting | Default | Behavior |
 |---|---|---|
+| Input device | System default | Native input ID, saved with playback settings |
 | Playback | Off | Start after selecting a speaker |
 | Automatic connection | On | Connect on input activity; disconnect after silence |
 | Speakers | None | Select from discovered devices |

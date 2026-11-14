@@ -19,6 +19,13 @@ See [compatibility and known limitations](docs/COMPATIBILITY.md).
 - Optionally identify songs and display album artwork.
 - Run locally without an account or subscription.
 
+## Desktop app (alpha)
+
+A native desktop interface is available for source builds: choose an audio input,
+select discovered speakers and control playback from the app or tray icon.
+See [desktop installation and scope](docs/DESKTOP.md). Signed installers are not
+available yet.
+
 ## Quick start
 
 Requires **Rust/Cargo** and **Python 3.10+**. Linux also needs the ALSA development

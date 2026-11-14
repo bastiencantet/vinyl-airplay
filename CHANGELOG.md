@@ -2,6 +2,12 @@
 
 ## Unreleased — community alpha
 
+- Add a Tauri desktop alpha with bundled native sender/fingerprint helper,
+  input selection, local controls, persistent settings and tray lifecycle.
+- Share the controller between desktop IPC and the authenticated web adapter.
+- Let inactive settings be saved without a speaker; add native input discovery
+  to both interfaces and suspend desktop polling when its window is hidden.
+
 - Share the sender as a Rust library and select native capture at compile time:
   ALSA on Linux, Core Audio on macOS, WASAPI on Windows.
 - Add native input enumeration, mono/stereo conversion and off-callback sinc
