@@ -61,7 +61,7 @@ jobs:
           dpkg-deb -f "${package[0]}" Depends | grep -q libasound2
           dpkg-deb -c "${package[0]}" > /tmp/vinyl-package-files.txt
           for binary in vinyl-airplay-desktop vinyl-airplay vinyl-shazam-fingerprint; do
-            grep -q "./usr/bin/$binary$" /tmp/vinyl-package-files.txt
+            grep -Eq "[[:space:]](\./)?usr/bin/$binary$" /tmp/vinyl-package-files.txt
           done
       - if: runner.os == 'macOS'
         shell: bash
