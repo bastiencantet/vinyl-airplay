@@ -61,7 +61,7 @@ when an image is available for the discovered model and color.
 
 | Option | Purpose |
 |---|---|
-| `--input-device` | Native input ID; system default if omitted |
+| `--input-device` | Override saved input; otherwise restore the saved/default native input |
 | `--alsa-device` | Legacy Linux ALSA input; mutually exclusive with native capture |
 | `--listen` | Specific private IPv4; loopback by default |
 | `--port` | Web port; defaults to 8787 |

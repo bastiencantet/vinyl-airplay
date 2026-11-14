@@ -91,6 +91,19 @@ fn real_native_web_launcher_embeds_ui_and_stays_off_on_fresh_state() {
         serde_json::from_slice(&std::fs::read(launcher.state.join("control/config.json")).unwrap())
             .unwrap();
     assert_eq!(disk, config);
+    let duplicate = Command::new(env!("CARGO_BIN_EXE_vinyl-web"))
+        .args([
+            "--port",
+            "8788",
+            "--sender",
+            env!("CARGO_BIN_EXE_vinyl-airplay"),
+            "--state",
+        ])
+        .arg(&launcher.state)
+        .output()
+        .unwrap();
+    assert!(!duplicate.status.success());
+    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("another web launcher owns"));
     #[cfg(unix)]
     {
         let status = Command::new("/bin/kill")
