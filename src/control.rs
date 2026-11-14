@@ -198,7 +198,7 @@ async fn meter_stream(State(app): State<Arc<App>>) -> impl IntoResponse {
             if sent && receiver.changed().await.is_err() {
                 return None;
             }
-            let value = receiver.borrow().clone();
+            let value = receiver.borrow_and_update().clone();
             let event = Event::default().data(value.to_string());
             Some((Ok::<_, std::convert::Infallible>(event), (receiver, true)))
         });
