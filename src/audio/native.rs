@@ -375,7 +375,7 @@ mod tests {
             .map(|i| [((i as i16) - 128) as f32 / 32768.0, -0.5])
             .collect();
         let bytes = Converter::new(RATE).unwrap().convert(&frames).unwrap();
-        for (i, frame) in bytes.chunks_exact(4).enumerate() {
+        for (i, frame) in bytes.as_chunks::<4>().0.iter().enumerate() {
             assert_eq!(i16::from_be_bytes([frame[0], frame[1]]), i as i16 - 128);
             assert_eq!(i16::from_be_bytes([frame[2], frame[3]]), -16384);
         }
@@ -409,7 +409,9 @@ mod tests {
             bytes.extend(converter.convert(&frames).unwrap());
         }
         let pcm: Vec<_> = bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|b| {
                 let l = i16::from_be_bytes([b[0], b[1]]);
                 let r = i16::from_be_bytes([b[2], b[3]]);
