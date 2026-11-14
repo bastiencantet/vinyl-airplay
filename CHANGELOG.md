@@ -29,3 +29,8 @@
 - Exclude private captures, personal infrastructure and experimental TV drivers.
 
 No packaged stable release has been published yet.
+
+The live spectrum now uses the visualizer's 4096-sample stereo Hann analysis
+with 20 logarithmic bands spanning 32 Hz–20 kHz. The web and desktop meters
+show the same calibrated values; audio samples are unchanged. Synthetic PCM
+and reference values validate parity with the original visualizer analysis.

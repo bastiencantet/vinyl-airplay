@@ -93,10 +93,11 @@ struct Status {
     phase: String,
     rms_dbfs: Option<f64>,
     peak_dbfs: Option<f64>,
-    meter_at: u64,
+    meter_at: f64,
+    meter_sequence: u64,
     channels_rms_dbfs: Option<[f64; 2]>,
     channels_peak_dbfs: Option<[f64; 2]>,
-    spectrum_dbfs: Option<[f64; 12]>,
+    spectrum_dbfs: Option<[f64; 20]>,
     schedule_ms: Option<f64>,
     track: Value,
     error: Option<String>,
@@ -108,7 +109,8 @@ impl Default for Status {
             phase: "stopped".into(),
             rms_dbfs: None,
             peak_dbfs: None,
-            meter_at: 0,
+            meter_at: 0.,
+            meter_sequence: 0,
             channels_rms_dbfs: None,
             channels_peak_dbfs: None,
             spectrum_dbfs: None,
@@ -128,6 +130,7 @@ struct Manager {
 struct App {
     manager: Mutex<Manager>,
     status: Arc<RwLock<Status>>,
+    meter_updates: tokio::sync::watch::Sender<Value>,
     token: String,
     root: PathBuf,
     config_path: PathBuf,
@@ -175,10 +178,33 @@ async fn state(State(app): State<Arc<App>>) -> Json<Value> {
         json!({"config":manager.config,"running":manager.child.is_some(),"status":*app.status.read().await,"volumes":volumes,"server_time":now(),"devices":app.receivers.list(),"active_targets":manager.addresses,"legacy_input":app.legacy_input}),
     )
 }
+fn precise_now() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64()
+}
+fn meter_value(s: &Status) -> Value {
+    json!({"server_time":precise_now(),"meter_at":s.meter_at,"meter_sequence":s.meter_sequence,"rms_dbfs":s.rms_dbfs,"peak_dbfs":s.peak_dbfs,"channels_rms_dbfs":s.channels_rms_dbfs,"channels_peak_dbfs":s.channels_peak_dbfs,"spectrum_dbfs":s.spectrum_dbfs})
+}
 async fn meter(State(app): State<Arc<App>>) -> Json<Value> {
-    let s = app.status.read().await;
-    Json(
-        json!({"server_time":now(),"meter_at":s.meter_at,"rms_dbfs":s.rms_dbfs,"peak_dbfs":s.peak_dbfs,"channels_rms_dbfs":s.channels_rms_dbfs,"channels_peak_dbfs":s.channels_peak_dbfs,"spectrum_dbfs":s.spectrum_dbfs}),
+    Json(meter_value(&*app.status.read().await))
+}
+async fn meter_stream(State(app): State<Arc<App>>) -> impl IntoResponse {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+    let receiver = app.meter_updates.subscribe();
+    let stream =
+        futures_util::stream::unfold((receiver, false), |(mut receiver, sent)| async move {
+            if sent && receiver.changed().await.is_err() {
+                return None;
+            }
+            let value = receiver.borrow().clone();
+            let event = Event::default().data(value.to_string());
+            Some((Ok::<_, std::convert::Infallible>(event), (receiver, true)))
+        });
+    (
+        [("x-accel-buffering", "no"), ("cache-control", "no-store")],
+        Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(5))),
     )
 }
 async fn refresh(manager: &mut Manager, status: &Arc<RwLock<Status>>) {
@@ -292,6 +318,7 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
     let mut child = cmd.spawn().context("Démarrer le programme audio")?;
     let stderr = child.stderr.take().context("stderr")?;
     let status = app.status.clone();
+    let meter_updates = app.meter_updates.clone();
     let (capture_tx, capture_rx) = oneshot::channel();
     let log_path = app.root.join("control/audio.log");
     manager.reader = Some(tokio::spawn(async move {
@@ -330,13 +357,15 @@ async fn start(app: &App, manager: &mut Manager) -> Result<()> {
                     Some("meter") => {
                         s.rms_dbfs = event["rms_dbfs"].as_f64();
                         s.peak_dbfs = event["peak_dbfs"].as_f64();
-                        s.meter_at = now();
+                        s.meter_at = precise_now();
+                        s.meter_sequence = s.meter_sequence.wrapping_add(1);
                         s.channels_rms_dbfs =
                             serde_json::from_value(event["channels_rms_dbfs"].clone()).ok();
                         s.channels_peak_dbfs =
                             serde_json::from_value(event["channels_peak_dbfs"].clone()).ok();
                         s.spectrum_dbfs =
                             serde_json::from_value(event["spectrum_dbfs"].clone()).ok();
+                        meter_updates.send_replace(meter_value(&s));
                     }
                     Some("playing") => {
                         s.phase = "playing".into();
@@ -559,6 +588,7 @@ impl Controller {
                 reader: None,
             }),
             status: Arc::new(RwLock::new(Status::default())),
+            meter_updates: tokio::sync::watch::channel(json!(null)).0,
             token,
             control_path: crate::ipc::endpoint(&root),
             root,
@@ -640,6 +670,7 @@ impl Controller {
         Router::new()
             .route("/api/state", get(state))
             .route("/api/meter", get(meter))
+            .route("/api/meter/stream", get(meter_stream))
             .route("/api/inputs", get(inputs))
             .route("/api/config", post(apply))
             .route("/api/artwork", get(artwork))

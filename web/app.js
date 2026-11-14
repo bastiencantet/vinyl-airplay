@@ -10,8 +10,26 @@ let saved=null,busy=false,online=false,artworkKey='',needsRestart=false,polling=
 let selected=new Set(),devices=new Map(),lastMeter=null;
 const cards=new Map(),volumeBusy=new Set(),volumeDirty=new Set();
 const phases={stopped:'Diffusion arrêtée',starting:'Démarrage…',monitoring:'En veille · à l’écoute de l’entrée',connecting:'Connexion aux enceintes…',playing:'Diffusion en cours',disconnecting:'Libération des enceintes…',error:'À vérifier'};
-const frequencies=['60','120','200','320','500','800','1,2k','2k','3,2k','5k','8k','14k'];
+const frequencies=Array.from({length:20},(_,i)=>32*Math.pow(625,(i+.5)/20));
 const bars=frequencies.map((hz,i)=>{const bar=document.createElement('span');bar.className='spectrum-band';const fill=document.createElement('i');fill.style.height='0%';bar.append(fill);$('spectrum').append(bar);return fill;});
+let meterStream=null,meterStreamConnected=false;
+let spectrumTargets=Array(20).fill(0),spectrumLevels=Array(20).fill(0),spectrumSeenAt=0,spectrumFrameAt=performance.now();
+function animateSpectrum(at){
+ const dt=Math.max(0,Math.min(3,(at-spectrumFrameAt)/(1000/30)));spectrumFrameAt=at;
+ const fresh=online&&at-spectrumSeenAt<750;
+ bars.forEach((bar,i)=>{const target=fresh?spectrumTargets[i]:0;const alpha=1-Math.pow(1-(target>spectrumLevels[i]?0.65:0.1),dt);spectrumLevels[i]+=(target-spectrumLevels[i])*alpha;bar.style.height=spectrumLevels[i]+'%';});
+ requestAnimationFrame(animateSpectrum);
+}
+function startMeterStream(){
+ if(desktop||!window.EventSource||document.hidden)return;
+ if(meterStream)meterStream.close();
+ meterStreamConnected=false;meterStream=new EventSource('/api/meter/stream');
+ meterStream.onopen=()=>{meterStreamConnected=true;};
+ meterStream.onmessage=event=>{try{const value=JSON.parse(event.data);if(value&&Array.isArray(value.spectrum_dbfs))renderMeter(value);}catch{}};
+ meterStream.onerror=()=>{meterStreamConnected=false;};
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){meterStream?.close();meterStream=null;meterStreamConnected=false;}else{startMeterStream();}});
+requestAnimationFrame(animateSpectrum);startMeterStream();
 function draft(){return {input_device:$('inputDevice').value,enabled:saved?.enabled??false,auto_connect:$('auto').checked,targets:[...selected].sort(),latency_ms:Number($('latency').value),gain_db:Number($('gain').value),recognize:$('recognize').checked};}
 function dirty(){return saved&&JSON.stringify(draft())!==JSON.stringify({...saved,targets:[...saved.targets].sort()});}
 function labels(){
@@ -89,7 +107,7 @@ function renderMeter(s){
  const fresh=online&&Number.isFinite(s.rms_dbfs)&&s.server_time-s.meter_at<2;
  $('spectrumState').textContent=fresh?(s.peak_dbfs>-58?'Signal capturé':'Silence'):'En attente du signal';
  $('spectrumPanel').classList.toggle('quiet',!fresh||s.peak_dbfs<-58);
- bars.forEach((b,i)=>{const db=fresh&&Number.isFinite(s.spectrum_dbfs?.[i])?s.spectrum_dbfs[i]:-90;b.style.height=Math.max(0,Math.min(100,(db+75)/65*100))+'%';});
+ spectrumSeenAt=performance.now();spectrumTargets=bars.map((_,i)=>fresh&&Number.isFinite(s.spectrum_dbfs?.[i])?Math.max(0,Math.min(100,(s.spectrum_dbfs[i]+72)/72*100)):0);
  for(let c=0;c<2;c++){const rms=fresh?(s.channels_rms_dbfs?.[c]??s.rms_dbfs):-90,peak=fresh?(s.channels_peak_dbfs?.[c]??s.peak_dbfs):-90;const fill=$('channel'+c),marker=$('peak'+c),meter=fill.parentElement;fill.style.width=Math.max(0,Math.min(100,(rms+60)/60*100))+'%';marker.style.left=Math.max(0,Math.min(100,(peak+60)/60*100))+'%';meter.setAttribute('aria-valuenow',Math.max(-60,rms));$('channelValue'+c).textContent=fresh?rms.toFixed(1)+' dBFS':'—';}
  $('peakValue').textContent=fresh?s.peak_dbfs.toFixed(1)+' dBFS':'—';
  const after=fresh?s.peak_dbfs+Number($('gain').value):null,clipping=after!==null&&after>=0;
@@ -100,10 +118,10 @@ async function poll(force=false){if(polling)return;polling=true;try{const data=a
  $('route').textContent=data.config.targets.map(id=>devices.get(id)?.name||'Enceinte mémorisée').join(' + ')||'Choisis une enceinte pour démarrer';
  const track=s.track||{};$('title').textContent=track.title||(s.phase==='playing'?'À l’écoute':'Prêt à diffuser');$('artist').textContent=track.artist||'Entrée audio';$('album').textContent=track.album||(data.config.recognize?'Reconnaissance après environ 12 s de musique.':'Reconnaissance des morceaux désactivée.');
  const key=track.artwork?track.key:'';if(key!==artworkKey){artworkKey=key;$('artwork').hidden=!key;if(key)loadArtwork(key);}
- renderMeter({...s,server_time:data.server_time});$('technical').textContent=`Entrée audio native · stéréo · PCM 44,1 kHz / 16 bits. Délai demandé : ${data.config.latency_ms} ms. Spectre : 12 bandes, calculé sur l’entrée avant gain. Les barres représentent le signal capturé, avec le délai de rafraîchissement du navigateur. La latence acoustique n’est pas mesurée.`;
+ renderMeter({...s,server_time:data.server_time});$('technical').textContent=`Entrée audio native · stéréo · PCM 44,1 kHz / 16 bits. Délai demandé : ${data.config.latency_ms} ms. Spectre : 20 bandes, calculé sur l’entrée avant gain. Les barres représentent le signal capturé, avec le délai de rafraîchissement du navigateur. La latence acoustique n’est pas mesurée.`;
  $('logs').textContent=(s.logs||[]).join('\n');showError(s.error||'');labels();
  }catch(e){online=false;$('connection').textContent='Connexion interrompue';$('connection').className='connection';$('power').disabled=true;$('apply').disabled=true;for(const c of cards.values()){c.input.disabled=true;c.select.disabled=true;}renderMeter({});showError('Le contrôleur est injoignable. Nouvelle tentative automatique.');}finally{polling=false;}}
-async function meterPoll(){if(meterPolling||!online||document.hidden||!desktopVisible)return;meterPolling=true;try{renderMeter(await api('meter'));}catch{renderMeter({});}finally{meterPolling=false;}}
+async function meterPoll(){if((!desktop&&meterStreamConnected)||meterPolling||!online||document.hidden||!desktopVisible)return;meterPolling=true;try{renderMeter(await api('meter'));}catch{renderMeter({});}finally{meterPolling=false;}}
 async function submit(c){busy=true;labels();$('power').disabled=true;showError('');try{await api('config',c);fill(c);await poll(true);}catch(e){showError(e.message);}finally{busy=false;await poll();labels();}}
 $('apply').onclick=()=>submit(draft());$('power').onclick=()=>{if(saved&&!busy)submit(saved.enabled&&!needsRestart?{...saved,enabled:false}:{...draft(),enabled:true});};
 [$('auto'),$('recognize'),$('gain'),$('latency'),$('inputDevice')].forEach(el=>el.addEventListener('input',()=>{labels();if(lastMeter)renderMeter(lastMeter);}));
@@ -112,7 +130,7 @@ document.querySelectorAll('[data-ms]').forEach(b=>b.onclick=()=>{$('latency').va
 $('refreshInputs').onclick=refreshInputs;
 refreshInputs();
 $('artwork').onerror=()=>{$('artwork').hidden=true;artworkKey='';};
-poll();setInterval(()=>{if(!busy&&!document.hidden&&desktopVisible)poll();},2000);setInterval(meterPoll,200);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!busy){poll();meterPoll();}});
+poll();setInterval(()=>{if(!busy&&!document.hidden&&desktopVisible)poll();},2000);setInterval(meterPoll,1000/30);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!busy){poll();meterPoll();}});
 
 
 function ensureInput(id) {
