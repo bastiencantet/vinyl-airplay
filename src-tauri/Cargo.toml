@@ -3,6 +3,8 @@ name = "vinyl-airplay-desktop"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
+description = "Stream live audio to AirPlay speakers with native Rust controls."
+authors = ["Bastien Cantet and contributors"]
 build = "build.rs"
 
 [build-dependencies]

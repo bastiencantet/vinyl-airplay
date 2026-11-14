@@ -54,6 +54,15 @@ jobs:
       - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: node scripts/prepare-desktop.mjs
       - run: npx tauri build --bundles ${{ matrix.bundles }} --ci
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          package=(target/release/bundle/deb/*.deb)
+          dpkg-deb -f "${package[0]}" Depends | grep -q libasound2
+          dpkg-deb -c "${package[0]}" > /tmp/vinyl-package-files.txt
+          for binary in vinyl-airplay-desktop vinyl-airplay vinyl-shazam-fingerprint; do
+            grep -q "./usr/bin/$binary$" /tmp/vinyl-package-files.txt
+          done
       - if: runner.os == 'macOS'
         shell: bash
         run: |
